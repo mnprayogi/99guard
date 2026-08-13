@@ -68,7 +68,7 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        <Toaster position="top-center" richColors />
+        <Toaster position="top-center" richColors toastOptions={{ duration: 3000 }} />
       </BrowserRouter>
     </AuthProvider>
   )

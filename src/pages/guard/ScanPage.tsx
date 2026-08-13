@@ -69,7 +69,6 @@ export default function ScanPage() {
         return
       }
       setCheckpoint(cp)
-      toast.success(`Titik ditemukan: ${cp.name}`)
     } catch {
       toast.error('Gagal memvalidasi QR')
     }
@@ -83,10 +82,25 @@ export default function ScanPage() {
   }
 
   async function handleSubmit() {
-    if (!checkpoint || !photo || !profile) return
+    if (!checkpoint) {
+      toast.error('Pindai atau masukkan kode QR titik terlebih dahulu')
+      return
+    }
+    if (!photo) {
+      toast.error('Ambil foto lokasi terlebih dahulu')
+      return
+    }
+    if (!profile) return
     setSubmitting(true)
     try {
-      const blob = await compressImage(photo)
+      let blob: Blob
+      try {
+        blob = await compressImage(photo)
+      } catch (e) {
+        console.error('compress', e)
+        toast.error('Gagal memproses foto. Coba lagi.')
+        return
+      }
       const pos = await getPosition()
 
       const today = new Date().toISOString().slice(0, 10)
@@ -100,35 +114,49 @@ export default function ScanPage() {
         return now >= s && now <= e && r.round_checkpoints.some((p) => p.checkpoints.id === checkpoint.id)
       })
 
-      const log = {
-        guard_id: profile.id,
-        checkpoint_id: checkpoint.id,
-        round_id: match?.id ?? null,
-        lat: pos?.lat ?? null,
-        lng: pos?.lng ?? null,
-        photo_base64: await blobToBase64(blob),
-      }
-
       if (!navigator.onLine) {
+        const log = {
+          guard_id: profile.id,
+          checkpoint_id: checkpoint.id,
+          round_id: match?.id ?? null,
+          lat: pos?.lat ?? null,
+          lng: pos?.lng ?? null,
+          photo_base64: await blobToBase64(blob),
+        }
         await queuePatrolLog(log)
         toast.success('Tersimpan offline — akan sinkron otomatis')
         navigate('/patrol', { replace: true })
         return
       }
 
-      const photoUrl = await uploadPhoto(blob, 'checkins')
+      let photoUrl: string | null = null
+      try {
+        photoUrl = await uploadPhoto(blob, 'checkins')
+      } catch (e) {
+        console.error('upload', e)
+      }
+      if (!photoUrl) {
+        toast.error('Gagal mengunggah foto. Periksa koneksi internet.')
+        return
+      }
+
       const { error } = await supabase.from('patrol_logs').insert({
         guard_id: profile.id,
         checkpoint_id: checkpoint.id,
-        round_id: log.round_id,
-        lat: log.lat,
-        lng: log.lng,
+        round_id: match?.id ?? null,
+        lat: pos?.lat ?? null,
+        lng: pos?.lng ?? null,
         photo_url: photoUrl,
       })
-      if (error) throw error
+      if (error) {
+        console.error('insert', error)
+        toast.error(`Gagal menyimpan: ${error.message}`)
+        return
+      }
       toast.success('Check-in berhasil')
       navigate('/patrol', { replace: true })
-    } catch {
+    } catch (e) {
+      console.error('checkin', e)
       toast.error('Gagal menyimpan. Coba lagi.')
     } finally {
       setSubmitting(false)
@@ -256,7 +284,7 @@ export default function ScanPage() {
 
           <Button
             onClick={handleSubmit}
-            disabled={!photo || submitting}
+            disabled={submitting}
             className="h-12 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-[14px] font-semibold text-white disabled:opacity-50"
           >
             {submitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
