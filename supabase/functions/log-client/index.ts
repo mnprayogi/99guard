@@ -27,7 +27,7 @@ Deno.serve(async (req: Request) => {
   const res = await fetch(`${supabaseUrl}/rest/v1/client_logs`, {
     method: "POST",
     headers: {
-      Authorization: auth,
+      Authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
       "Content-Type": "application/json",
       Prefer: "return=minimal",

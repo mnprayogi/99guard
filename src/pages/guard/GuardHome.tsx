@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { getGuardTodayRounds, getTodayPatrolLogs, type RoundWithDetails } from '@/lib/api'
 import { db } from '@/lib/db'
 import { syncNow } from '@/lib/offline'
+import { logClient } from '@/lib/debugLog'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Camera, CheckCircle2, MapPin, QrCode, RefreshCw, WifiOff } from 'lucide-react'
@@ -35,7 +36,9 @@ export default function GuardHome() {
       setRounds(r)
       setScannedIds(ids)
       setPending(count)
+      logClient('guardhome', 'load', 'berhasil', { rounds: r.length })
     } catch {
+      logClient('guardhome', 'load', 'gagal')
       toast.error('Gagal memuat data')
     } finally {
       setLoading(false)

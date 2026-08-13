@@ -5,14 +5,19 @@ export async function logClient(page: string, step: string, message?: string, me
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    await supabase.functions.invoke('log-client', {
-      body: {
-        page,
-        step,
-        message: message ?? '',
-        meta: { uid: user?.id ?? null, ...(meta as Record<string, unknown> | undefined) },
-      },
+    if (!user) return
+    const { error } = await supabase.from('client_logs').insert({
+      user_id: user.id,
+      page,
+      step,
+      message: message ?? '',
+      meta: meta ?? null,
     })
+    if (error) {
+      await supabase.functions.invoke('log-client', {
+        body: { page, step, message: message ?? '', meta: { uid: user.id, ...(meta as Record<string, unknown> | undefined) } },
+      })
+    }
   } catch {
     // observability — jangan ganggu alur utama
   }
