@@ -187,7 +187,7 @@ export default function GuardHome() {
                   points={points.map((p) => ({
                     id: p.checkpoints.id,
                     name: p.checkpoints.name,
-                    scanned: scannedIds.has(p.checkpoints.id),
+                    scanned: roundLogs.some((l) => l.checkpoint_id === p.checkpoints.id),
                   }))}
                   onPointClick={() => navigate('/patrol/scan')}
                   size={128}
@@ -216,7 +216,7 @@ export default function GuardHome() {
 
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
                     {points.map((p) => {
-                      const scanned = scannedIds.has(p.checkpoints.id)
+                      const scanned = roundLogs.some((l) => l.checkpoint_id === p.checkpoints.id)
                       return (
                         <span
                           key={p.id}
