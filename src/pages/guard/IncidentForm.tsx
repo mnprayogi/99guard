@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { compressImage, getPosition, uploadPhoto, blobToBase64 } from '@/lib/photo'
@@ -18,21 +18,71 @@ const categories: { value: IncidentCategory; label: string; emoji: string }[] = 
   { value: 'lainnya', label: 'Lainnya', emoji: '📋' },
 ]
 
+const DRAFT_KEY = 'incident-draft-v1'
+
+function dataURLToFile(dataUrl: string, name: string): File {
+  const mime = dataUrl.match(/^data:(.*?);/)?.[1] ?? 'image/jpeg'
+  const bin = atob(dataUrl.split(',')[1])
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return new File([arr], name, { type: mime })
+}
+
 export default function IncidentForm() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
   const [category, setCategory] = useState<IncidentCategory>('kebakaran')
   const [description, setDescription] = useState('')
-  const [photo, setPhoto] = useState<File | null>(null)
+  const [photo, setPhoto] = useState<File | Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.category) setCategory(draft.category)
+      if (draft.description) setDescription(draft.description)
+      if (draft.photo) {
+        setPhoto(dataURLToFile(draft.photo, 'draft.jpg'))
+        setPhotoPreview(draft.photo)
+      }
+    } catch {
+      sessionStorage.removeItem(DRAFT_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        let dataUrl = ''
+        if (photo) {
+          const blob = await compressImage(photo)
+          dataUrl = await blobToBase64(blob)
+        }
+        sessionStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({ category, description: description.trim(), photo: dataUrl }),
+        )
+      } catch {
+        // draft tidak kritis
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [category, description, photo])
+
+  function clearDraft() {
+    sessionStorage.removeItem(DRAFT_KEY)
+  }
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setPhoto(file)
-    setPhotoPreview(URL.createObjectURL(file))
+    const compressed = await compressImage(file)
+    setPhoto(compressed)
+    setPhotoPreview(URL.createObjectURL(compressed))
   }
 
   async function handleSubmit() {
@@ -51,6 +101,7 @@ export default function IncidentForm() {
           lng: pos?.lng ?? null,
           photo_base64: blob ? await blobToBase64(blob) : '',
         })
+        clearDraft()
         toast.success('Tersimpan offline — akan sinkron otomatis')
         navigate('/patrol', { replace: true })
         return
@@ -73,9 +124,16 @@ export default function IncidentForm() {
         const photoUrl = await uploadPhoto(blob, 'incidents')
         if (photoUrl) {
           await supabase.from('incident_photos').insert({ incident_id: data.id, photo_url: photoUrl })
+        } else {
+          console.error('upload foto insiden gagal')
+          toast.error('Insiden tersimpan, tapi foto gagal diunggah')
+          clearDraft()
+          navigate('/patrol', { replace: true })
+          return
         }
       }
 
+      clearDraft()
       toast.success('Insiden berhasil dilaporkan')
       navigate('/patrol', { replace: true })
     } catch {

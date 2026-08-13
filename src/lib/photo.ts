@@ -4,12 +4,19 @@ import { supabase } from '@/lib/supabase'
 const options = {
   maxSizeMB: 0.15,
   maxWidthOrHeight: 800,
-  useWebWorker: true,
   initialQuality: 0.7,
 }
 
 export async function compressImage(file: File | Blob): Promise<Blob> {
-  return imageCompression(file as File, options)
+  try {
+    return await imageCompression(file as File, { ...options, useWebWorker: true })
+  } catch {
+    try {
+      return await imageCompression(file as File, { ...options, useWebWorker: false })
+    } catch {
+      return file
+    }
+  }
 }
 
 export function blobToBase64(blob: Blob): Promise<string> {
@@ -44,7 +51,10 @@ export async function uploadPhoto(
   const ext = blob.type === 'image/png' ? 'png' : 'jpg'
   const path = `${folder}/${crypto.randomUUID()}.${ext}`
   const { error } = await supabaseStorageUpload(path, blob)
-  if (error) return null
+  if (error) {
+    console.error('uploadPhoto', error)
+    return null
+  }
   return supabaseStoragePublicUrl(path)
 }
 

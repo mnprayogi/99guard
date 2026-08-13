@@ -32,7 +32,7 @@ export default function ScanPage() {
   const [starting, setStarting] = useState(false)
   const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null)
   const [manualCode, setManualCode] = useState('')
-  const [photo, setPhoto] = useState<File | null>(null)
+  const [photo, setPhoto] = useState<File | Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -51,7 +51,7 @@ export default function ScanPage() {
     }
   }, [])
 
-  async function saveDraft(cp: Checkpoint | null = checkpoint, ph: File | null = photo) {
+  async function saveDraft(cp: Checkpoint | null = checkpoint, ph: File | Blob | null = photo) {
     try {
       if (!cp) return
       let dataUrl = ''
@@ -118,12 +118,13 @@ export default function ScanPage() {
     }
   }
 
-  function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setPhoto(file)
-    setPhotoPreview(URL.createObjectURL(file))
-    saveDraft(checkpoint, file)
+    const compressed = await compressImage(file)
+    setPhoto(compressed)
+    setPhotoPreview(URL.createObjectURL(compressed))
+    saveDraft(checkpoint, compressed)
   }
 
   async function handleSubmit() {
