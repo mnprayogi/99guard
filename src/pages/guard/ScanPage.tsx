@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { useAuth } from '@/context/AuthContext'
 import { findCheckpointByQr, getGuardTodayRounds } from '@/lib/api'
-import { compressImage, getPosition, uploadPhoto, blobToBase64 } from '@/lib/photo'
+import { compressImage, getPosition, uploadPhoto, blobToBase64, openCamera, stopCamera, captureVideoFrame } from '@/lib/photo'
 import { queuePatrolLog } from '@/lib/offline'
 import { logClient } from '@/lib/debugLog'
 import { supabase } from '@/lib/supabase'
@@ -28,9 +28,12 @@ export default function ScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const controlsRef = useRef<{ stop: () => void } | null>(null)
+  const photoStreamRef = useRef<MediaStream | null>(null)
 
   const [scanning, setScanning] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [cameraOn, setCameraOn] = useState(false)
+  const [capturing, setCapturing] = useState(false)
   const [checkpoint, setCheckpoint] = useState<Checkpoint | null>(null)
   const [manualCode, setManualCode] = useState('')
   const [photo, setPhoto] = useState<File | Blob | null>(null)
@@ -78,8 +81,55 @@ export default function ScanPage() {
   }, [])
 
   useEffect(() => {
-    return () => stopScan()
+    return () => {
+      stopScan()
+      stopCamera(photoStreamRef.current)
+    }
   }, [stopScan])
+
+  async function startPhotoCamera() {
+    setCapturing(true)
+    try {
+      const stream = await openCamera(videoRef.current!)
+      photoStreamRef.current = stream
+      setCameraOn(true)
+      logClient('scan', 'photo', 'kamera dibuka')
+    } catch {
+      logClient('scan', 'photo', 'kamera gagal — fallback galeri')
+      toast.error('Kamera tidak dapat dibuka. Pilih dari galeri.')
+      fileRef.current?.click()
+    } finally {
+      setCapturing(false)
+    }
+  }
+
+  function stopPhotoCamera() {
+    stopCamera(photoStreamRef.current)
+    photoStreamRef.current = null
+    setCameraOn(false)
+    if (videoRef.current) videoRef.current.srcObject = null
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current
+    if (!video || !photoStreamRef.current) return
+    setCapturing(true)
+    try {
+      const blob = await captureVideoFrame(video)
+      if (!blob) throw new Error('frame kosong')
+      setPhoto(blob)
+      setPhotoPreview(URL.createObjectURL(blob))
+      stopPhotoCamera()
+      saveDraft(checkpoint, blob)
+      logClient('scan', 'photo', 'dipilih (kamera)', { size: blob.size })
+    } catch (e) {
+      console.error('capture', e)
+      logClient('scan', 'photo', 'capture gagal', { err: String(e) })
+      toast.error('Gagal mengambil foto. Coba lagi.')
+    } finally {
+      setCapturing(false)
+    }
+  }
 
   async function startScan() {
     setStarting(true)
@@ -129,7 +179,7 @@ export default function ScanPage() {
     setPhoto(file)
     setPhotoPreview(URL.createObjectURL(file))
     saveDraft(checkpoint, file)
-    logClient('scan', 'photo', 'dipilih', { size: file.size })
+    logClient('scan', 'photo', 'dipilih (galeri)', { size: file.size })
   }
 
   async function handleSubmit() {
@@ -231,6 +281,7 @@ export default function ScanPage() {
         {checkpoint && (
           <button
             onClick={() => {
+              stopPhotoCamera()
               clearDraft()
               setCheckpoint(null)
               setPhoto(null)
@@ -319,21 +370,50 @@ export default function ScanPage() {
             <div className="relative overflow-hidden rounded-3xl">
               <img src={photoPreview} alt="Bukti lokasi" className="aspect-square w-full object-cover" />
               <button
-                onClick={() => fileRef.current?.click()}
+                onClick={() => {
+                  setPhoto(null)
+                  setPhotoPreview(null)
+                  startPhotoCamera()
+                }}
                 className="absolute bottom-3 right-3 rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow"
               >
                 Ambil Ulang
               </button>
             </div>
+          ) : cameraOn ? (
+            <div className="relative overflow-hidden rounded-3xl bg-slate-900">
+              <video ref={videoRef} autoPlay playsInline muted className="aspect-square w-full object-cover" />
+              <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
+                <button
+                  onClick={stopPhotoCamera}
+                  className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={capturePhoto}
+                  disabled={capturing}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
+                >
+                  {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                  {capturing ? 'Mengambil...' : 'Ambil Foto'}
+                </button>
+              </div>
+            </div>
           ) : (
             <>
               <button
-                onClick={() => fileRef.current?.click()}
-                className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-brand-blue/40 bg-brand-blue-light/50 text-brand-blue transition hover:bg-brand-blue-light"
+                onClick={startPhotoCamera}
+                disabled={capturing}
+                className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-brand-blue/40 bg-brand-blue-light/50 text-brand-blue transition hover:bg-brand-blue-light disabled:opacity-60"
               >
-                <Camera className="size-8" />
+                {capturing ? (
+                  <Loader2 className="size-8 animate-spin" />
+                ) : (
+                  <Camera className="size-8" />
+                )}
                 <span className="text-sm font-semibold">Foto Lokasi (wajib)</span>
-                <span className="text-xs">Pastikan area sekitar titik terekam</span>
+                <span className="text-xs">Diambil langsung dari kamera saat ini juga</span>
               </button>
               <p className="text-center text-xs text-slate-400">
                 Setelah foto diambil, tekan <b>Simpan Check-in</b> di bawah

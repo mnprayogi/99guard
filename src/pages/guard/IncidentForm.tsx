@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { compressImage, getPosition, uploadPhoto, blobToBase64 } from '@/lib/photo'
+import { compressImage, getPosition, uploadPhoto, blobToBase64, openCamera, stopCamera, captureVideoFrame } from '@/lib/photo'
 import { queueIncident } from '@/lib/offline'
 import { logClient } from '@/lib/debugLog'
 import { supabase } from '@/lib/supabase'
@@ -33,11 +33,62 @@ export default function IncidentForm() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
+  const videoPhotoRef = useRef<HTMLVideoElement>(null)
+  const photoStreamRef = useRef<MediaStream | null>(null)
   const [category, setCategory] = useState<IncidentCategory>('kebakaran')
   const [description, setDescription] = useState('')
   const [photo, setPhoto] = useState<File | Blob | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [cameraOn, setCameraOn] = useState(false)
+  const [capturing, setCapturing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    return () => stopCamera(photoStreamRef.current)
+  }, [])
+
+  async function startPhotoCamera() {
+    setCapturing(true)
+    try {
+      const stream = await openCamera(videoPhotoRef.current!)
+      photoStreamRef.current = stream
+      setCameraOn(true)
+      logClient('incident', 'photo', 'kamera dibuka')
+    } catch {
+      logClient('incident', 'photo', 'kamera gagal — fallback galeri')
+      toast.error('Kamera tidak dapat dibuka. Pilih dari galeri.')
+      fileRef.current?.click()
+    } finally {
+      setCapturing(false)
+    }
+  }
+
+  function stopPhotoCamera() {
+    stopCamera(photoStreamRef.current)
+    photoStreamRef.current = null
+    setCameraOn(false)
+    if (videoPhotoRef.current) videoPhotoRef.current.srcObject = null
+  }
+
+  async function capturePhoto() {
+    const video = videoPhotoRef.current
+    if (!video || !photoStreamRef.current) return
+    setCapturing(true)
+    try {
+      const blob = await captureVideoFrame(video)
+      if (!blob) throw new Error('frame kosong')
+      setPhoto(blob)
+      setPhotoPreview(URL.createObjectURL(blob))
+      stopPhotoCamera()
+      logClient('incident', 'photo', 'dipilih (kamera)', { size: blob.size })
+    } catch (e) {
+      console.error('capture', e)
+      logClient('incident', 'photo', 'capture gagal', { err: String(e) })
+      toast.error('Gagal mengambil foto. Coba lagi.')
+    } finally {
+      setCapturing(false)
+    }
+  }
 
   useEffect(() => {
     try {
@@ -83,7 +134,7 @@ export default function IncidentForm() {
     if (!file) return
     setPhoto(file)
     setPhotoPreview(URL.createObjectURL(file))
-    logClient('incident', 'photo', 'dipilih', { size: file.size })
+    logClient('incident', 'photo', 'dipilih (galeri)', { size: file.size })
   }
 
   async function handleSubmit() {
@@ -189,19 +240,45 @@ export default function IncidentForm() {
         <div className="relative overflow-hidden rounded-2xl">
           <img src={photoPreview} alt="Foto insiden" className="aspect-video w-full object-cover" />
           <button
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              setPhoto(null)
+              setPhotoPreview(null)
+              startPhotoCamera()
+            }}
             className="absolute bottom-3 right-3 rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow"
           >
             Ganti Foto
           </button>
         </div>
+      ) : cameraOn ? (
+        <div className="relative overflow-hidden rounded-2xl bg-slate-900">
+          <video ref={videoPhotoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
+          <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
+            <button
+              onClick={stopPhotoCamera}
+              className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
+            >
+              Batal
+            </button>
+            <button
+              onClick={capturePhoto}
+              disabled={capturing}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
+            >
+              {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+              {capturing ? 'Mengambil...' : 'Ambil Foto'}
+            </button>
+          </div>
+        </div>
       ) : (
         <button
-          onClick={() => fileRef.current?.click()}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white py-8 text-slate-400 transition hover:border-brand-blue/50 hover:text-brand-blue"
+          onClick={startPhotoCamera}
+          disabled={capturing}
+          className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white py-8 text-slate-400 transition hover:border-brand-blue/50 hover:text-brand-blue disabled:opacity-60"
         >
-          <Camera className="size-7" />
-          <span className="text-sm font-semibold">Lampirkan Foto (opsional)</span>
+          {capturing ? <Loader2 className="size-7 animate-spin" /> : <Camera className="size-7" />}
+          <span className="text-sm font-semibold">Ambil Foto (opsional)</span>
+          <span className="text-xs">Diambil langsung dari kamera saat ini juga</span>
         </button>
       )}
       <input

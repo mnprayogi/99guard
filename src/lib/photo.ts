@@ -58,6 +58,30 @@ export async function uploadPhoto(
   return supabaseStoragePublicUrl(path)
 }
 
+export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment' },
+    audio: false,
+  })
+  video.srcObject = stream
+  await video.play()
+  return stream
+}
+
+export function stopCamera(stream: MediaStream | null) {
+  stream?.getTracks().forEach((t) => t.stop())
+}
+
+export function captureVideoFrame(video: HTMLVideoElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob(resolve, 'image/jpeg', 0.85)
+  })
+}
+
 function supabaseStorageUpload(path: string, blob: Blob) {
   return supabase.storage.from('photos').upload(path, blob, {
     contentType: blob.type || 'image/jpeg',
