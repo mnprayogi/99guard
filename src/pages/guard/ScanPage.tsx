@@ -11,6 +11,16 @@ import { Camera, CheckCircle2, Loader2, MapPin, QrCode, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Checkpoint } from '@/lib/types'
 
+const DRAFT_KEY = 'scan-draft-v1'
+
+function dataURLToFile(dataUrl: string, name: string): File {
+  const mime = dataUrl.match(/^data:(.*?);/)?.[1] ?? 'image/jpeg'
+  const bin = atob(dataUrl.split(',')[1])
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return new File([arr], name, { type: mime })
+}
+
 export default function ScanPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
@@ -25,6 +35,39 @@ export default function ScanPage() {
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.checkpoint) setCheckpoint(draft.checkpoint)
+      if (draft.photo) {
+        setPhoto(dataURLToFile(draft.photo, 'draft.jpg'))
+        setPhotoPreview(draft.photo)
+      }
+    } catch {
+      sessionStorage.removeItem(DRAFT_KEY)
+    }
+  }, [])
+
+  async function saveDraft(cp: Checkpoint | null = checkpoint, ph: File | null = photo) {
+    try {
+      if (!cp) return
+      let dataUrl = ''
+      if (ph) {
+        const blob = await compressImage(ph)
+        dataUrl = await blobToBase64(blob)
+      }
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ checkpoint: cp, photo: dataUrl }))
+    } catch {
+      // draft tidak kritis — abaikan jika gagal
+    }
+  }
+
+  function clearDraft() {
+    sessionStorage.removeItem(DRAFT_KEY)
+  }
 
   const stopScan = useCallback(() => {
     controlsRef.current?.stop()
@@ -69,6 +112,7 @@ export default function ScanPage() {
         return
       }
       setCheckpoint(cp)
+      saveDraft(cp)
     } catch {
       toast.error('Gagal memvalidasi QR')
     }
@@ -79,6 +123,7 @@ export default function ScanPage() {
     if (!file) return
     setPhoto(file)
     setPhotoPreview(URL.createObjectURL(file))
+    saveDraft(checkpoint, file)
   }
 
   async function handleSubmit() {
@@ -124,6 +169,7 @@ export default function ScanPage() {
           photo_base64: await blobToBase64(blob),
         }
         await queuePatrolLog(log)
+        clearDraft()
         toast.success('Tersimpan offline — akan sinkron otomatis')
         navigate('/patrol', { replace: true })
         return
@@ -154,6 +200,7 @@ export default function ScanPage() {
         return
       }
       toast.success('Check-in berhasil')
+      clearDraft()
       navigate('/patrol', { replace: true })
     } catch (e) {
       console.error('checkin', e)
@@ -170,6 +217,7 @@ export default function ScanPage() {
         {checkpoint && (
           <button
             onClick={() => {
+              clearDraft()
               setCheckpoint(null)
               setPhoto(null)
               setPhotoPreview(null)
@@ -264,14 +312,19 @@ export default function ScanPage() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-brand-blue/40 bg-brand-blue-light/50 text-brand-blue transition hover:bg-brand-blue-light"
-            >
-              <Camera className="size-8" />
-              <span className="text-sm font-semibold">Foto Lokasi (wajib)</span>
-              <span className="text-xs">Pastikan area sekitar titik terekam</span>
-            </button>
+            <>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-brand-blue/40 bg-brand-blue-light/50 text-brand-blue transition hover:bg-brand-blue-light"
+              >
+                <Camera className="size-8" />
+                <span className="text-sm font-semibold">Foto Lokasi (wajib)</span>
+                <span className="text-xs">Pastikan area sekitar titik terekam</span>
+              </button>
+              <p className="text-center text-xs text-slate-400">
+                Setelah foto diambil, tekan <b>Simpan Check-in</b> di bawah
+              </p>
+            </>
           )}
           <input
             ref={fileRef}
@@ -288,7 +341,7 @@ export default function ScanPage() {
             className="h-12 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-[14px] font-semibold text-white disabled:opacity-50"
           >
             {submitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-            {submitting ? 'Menyimpan...' : 'Konfirmasi Check-in'}
+            {submitting ? 'Menyimpan...' : 'Simpan Check-in'}
           </Button>
           <p className="flex items-center justify-center gap-1.5 text-xs text-slate-400">
             <MapPin className="size-3.5" />
