@@ -126,10 +126,10 @@ export default function ScanPage() {
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const compressed = await compressImage(file)
-    setPhoto(compressed)
-    setPhotoPreview(URL.createObjectURL(compressed))
-    saveDraft(checkpoint, compressed)
+    setPhoto(file)
+    setPhotoPreview(URL.createObjectURL(file))
+    saveDraft(checkpoint, file)
+    logClient('scan', 'photo', 'dipilih', { size: file.size })
   }
 
   async function handleSubmit() {
@@ -344,7 +344,6 @@ export default function ScanPage() {
             ref={fileRef}
             type="file"
             accept="image/*"
-            capture="environment"
             className="hidden"
             onChange={handlePhoto}
           />

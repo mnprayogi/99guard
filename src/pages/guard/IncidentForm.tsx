@@ -81,9 +81,9 @@ export default function IncidentForm() {
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const compressed = await compressImage(file)
-    setPhoto(compressed)
-    setPhotoPreview(URL.createObjectURL(compressed))
+    setPhoto(file)
+    setPhotoPreview(URL.createObjectURL(file))
+    logClient('incident', 'photo', 'dipilih', { size: file.size })
   }
 
   async function handleSubmit() {
@@ -208,7 +208,6 @@ export default function IncidentForm() {
         ref={fileRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handlePhoto}
       />
