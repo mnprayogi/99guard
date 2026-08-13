@@ -94,9 +94,8 @@ export default function ScanPage() {
       photoStreamRef.current = stream
       setCameraOn(true)
       logClient('scan', 'photo', 'kamera dibuka')
-    } catch {
-      logClient('scan', 'photo', 'kamera gagal — fallback galeri')
-      toast.error('Kamera tidak dapat dibuka. Pilih dari galeri.')
+    } catch (e) {
+      logClient('scan', 'photo', 'getUserMedia gagal — buka kamera sistem', { err: String(e) })
       fileRef.current?.click()
     } finally {
       setCapturing(false)
@@ -424,6 +423,7 @@ export default function ScanPage() {
             ref={fileRef}
             type="file"
             accept="image/*"
+            capture="environment"
             className="hidden"
             onChange={handlePhoto}
           />

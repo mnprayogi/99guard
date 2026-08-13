@@ -54,9 +54,8 @@ export default function IncidentForm() {
       photoStreamRef.current = stream
       setCameraOn(true)
       logClient('incident', 'photo', 'kamera dibuka')
-    } catch {
-      logClient('incident', 'photo', 'kamera gagal — fallback galeri')
-      toast.error('Kamera tidak dapat dibuka. Pilih dari galeri.')
+    } catch (e) {
+      logClient('incident', 'photo', 'getUserMedia gagal — buka kamera sistem', { err: String(e) })
       fileRef.current?.click()
     } finally {
       setCapturing(false)
@@ -285,6 +284,7 @@ export default function IncidentForm() {
         ref={fileRef}
         type="file"
         accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handlePhoto}
       />
