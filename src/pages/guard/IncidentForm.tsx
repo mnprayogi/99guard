@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { compressImage, getPosition, uploadPhoto, blobToBase64 } from '@/lib/photo'
 import { queueIncident } from '@/lib/offline'
+import { logClient } from '@/lib/debugLog'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Camera, Loader2, Send } from 'lucide-react'
@@ -88,6 +89,7 @@ export default function IncidentForm() {
   async function handleSubmit() {
     if (!profile) return
     setSubmitting(true)
+    logClient('incident', 'submit', 'mulai', { category, photoSize: photo?.size ?? 0, online: navigator.onLine })
     try {
       const blob = photo ? await compressImage(photo) : null
       const pos = await getPosition()
@@ -126,6 +128,7 @@ export default function IncidentForm() {
           await supabase.from('incident_photos').insert({ incident_id: data.id, photo_url: photoUrl })
         } else {
           console.error('upload foto insiden gagal')
+          logClient('incident', 'submit', 'upload foto gagal', { incidentId: data.id })
           toast.error('Insiden tersimpan, tapi foto gagal diunggah')
           clearDraft()
           navigate('/patrol', { replace: true })
@@ -134,9 +137,12 @@ export default function IncidentForm() {
       }
 
       clearDraft()
+      logClient('incident', 'submit', 'berhasil')
       toast.success('Insiden berhasil dilaporkan')
       navigate('/patrol', { replace: true })
-    } catch {
+    } catch (e) {
+      console.error('incident', e)
+      logClient('incident', 'submit', 'error', { err: String(e) })
       toast.error('Gagal melaporkan. Coba lagi.')
     } finally {
       setSubmitting(false)

@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext'
 import { findCheckpointByQr, getGuardTodayRounds } from '@/lib/api'
 import { compressImage, getPosition, uploadPhoto, blobToBase64 } from '@/lib/photo'
 import { queuePatrolLog } from '@/lib/offline'
+import { logClient } from '@/lib/debugLog'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Camera, CheckCircle2, Loader2, MapPin, QrCode, X } from 'lucide-react'
@@ -99,6 +100,7 @@ export default function ScanPage() {
       setScanning(true)
     } catch {
       toast.error('Tidak dapat mengakses kamera. Gunakan masukan manual.')
+      logClient('scan', 'startScan', 'kamera gagal dibuka')
     } finally {
       setStarting(false)
     }
@@ -109,12 +111,15 @@ export default function ScanPage() {
       const cp = await findCheckpointByQr(code)
       if (!cp) {
         toast.error('QR tidak dikenal atau titik tidak aktif')
+        logClient('scan', 'qr', 'tidak dikenal', { code })
         return
       }
       setCheckpoint(cp)
+      logClient('scan', 'qr', 'titik ditemukan', { code, cpId: cp.id })
       saveDraft(cp)
     } catch {
       toast.error('Gagal memvalidasi QR')
+      logClient('scan', 'qr', 'error validasi')
     }
   }
 
@@ -138,12 +143,14 @@ export default function ScanPage() {
     }
     if (!profile) return
     setSubmitting(true)
+    logClient('scan', 'submit', 'mulai', { cpId: checkpoint.id, photoSize: photo.size, online: navigator.onLine })
     try {
       let blob: Blob
       try {
         blob = await compressImage(photo)
       } catch (e) {
         console.error('compress', e)
+        logClient('scan', 'submit', 'compress gagal', { err: String(e) })
         toast.error('Gagal memproses foto. Coba lagi.')
         return
       }
@@ -171,6 +178,7 @@ export default function ScanPage() {
         }
         await queuePatrolLog(log)
         clearDraft()
+        logClient('scan', 'submit', 'antre offline')
         toast.success('Tersimpan offline — akan sinkron otomatis')
         navigate('/patrol', { replace: true })
         return
@@ -181,8 +189,10 @@ export default function ScanPage() {
         photoUrl = await uploadPhoto(blob, 'checkins')
       } catch (e) {
         console.error('upload', e)
+        logClient('scan', 'submit', 'upload throw', { err: String(e) })
       }
       if (!photoUrl) {
+        logClient('scan', 'submit', 'upload gagal/null')
         toast.error('Gagal mengunggah foto. Periksa koneksi internet.')
         return
       }
@@ -197,14 +207,17 @@ export default function ScanPage() {
       })
       if (error) {
         console.error('insert', error)
+        logClient('scan', 'submit', 'insert error', { err: error.message })
         toast.error(`Gagal menyimpan: ${error.message}`)
         return
       }
+      logClient('scan', 'submit', 'berhasil', { photoUrl })
       toast.success('Check-in berhasil')
       clearDraft()
       navigate('/patrol', { replace: true })
     } catch (e) {
       console.error('checkin', e)
+      logClient('scan', 'submit', 'error umum', { err: String(e) })
       toast.error('Gagal menyimpan. Coba lagi.')
     } finally {
       setSubmitting(false)
