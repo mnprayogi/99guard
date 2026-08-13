@@ -186,6 +186,12 @@ export interface Database {
           { foreignKeyName: string; columns: ['admin_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] },
         ]
       }
+      client_logs: {
+        Row: { id: string; user_id: string | null; page: string; step: string; message: string; meta: unknown; created_at: string }
+        Insert: Partial<{ id: string; user_id: string | null; page: string; step: string; message: string; meta: unknown }>
+        Update: Partial<{ id: string; user_id: string | null; page: string; step: string; message: string; meta: unknown }>
+        Relationships: [{ foreignKeyName: string; columns: ['user_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] }]
+      }
     }
     Views: Record<string, never>
     Functions: {
