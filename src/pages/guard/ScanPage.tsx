@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Camera, CheckCircle2, Loader2, MapPin, QrCode, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { Checkpoint } from '@/lib/types'
 
 const DRAFT_KEY = 'scan-draft-v1'
