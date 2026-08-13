@@ -74,11 +74,18 @@ export function stopCamera(stream: MediaStream | null) {
 
 export function captureVideoFrame(video: HTMLVideoElement): Promise<Blob | null> {
   return new Promise((resolve) => {
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
-    canvas.toBlob(resolve, 'image/jpeg', 0.85)
+    const grab = () => {
+      if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+        setTimeout(grab, 120)
+        return
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d')?.drawImage(video, 0, 0)
+      canvas.toBlob(resolve, 'image/jpeg', 0.85)
+    }
+    grab()
   })
 }
 

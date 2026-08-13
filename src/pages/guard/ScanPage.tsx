@@ -379,32 +379,34 @@ export default function ScanPage() {
                 Ambil Ulang
               </button>
             </div>
-          ) : cameraOn ? (
-            <div className="relative overflow-hidden rounded-3xl bg-slate-900">
-              <video ref={videoRef} autoPlay playsInline muted className="aspect-square w-full object-cover" />
-              <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
-                <button
-                  onClick={stopPhotoCamera}
-                  className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={capturePhoto}
-                  disabled={capturing}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
-                >
-                  {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-                  {capturing ? 'Mengambil...' : 'Ambil Foto'}
-                </button>
-              </div>
-            </div>
           ) : (
             <>
+              <div className={cn('relative overflow-hidden rounded-3xl bg-slate-900', cameraOn ? '' : 'hidden')}>
+                <video ref={videoRef} autoPlay playsInline muted className="aspect-square w-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
+                  <button
+                    onClick={stopPhotoCamera}
+                    className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={capturePhoto}
+                    disabled={capturing}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
+                  >
+                    {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                    {capturing ? 'Mengambil...' : 'Ambil Foto'}
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={startPhotoCamera}
                 disabled={capturing}
-                className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-brand-blue/40 bg-brand-blue-light/50 text-brand-blue transition hover:bg-brand-blue-light disabled:opacity-60"
+                className={cn(
+                  'flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-brand-blue/40 bg-brand-blue-light/50 text-brand-blue transition hover:bg-brand-blue-light disabled:opacity-60',
+                  cameraOn ? 'hidden' : '',
+                )}
               >
                 {capturing ? (
                   <Loader2 className="size-8 animate-spin" />

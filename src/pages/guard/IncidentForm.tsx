@@ -249,36 +249,40 @@ export default function IncidentForm() {
             Ganti Foto
           </button>
         </div>
-      ) : cameraOn ? (
-        <div className="relative overflow-hidden rounded-2xl bg-slate-900">
-          <video ref={videoPhotoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
-          <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
-            <button
-              onClick={stopPhotoCamera}
-              className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
-            >
-              Batal
-            </button>
-            <button
-              onClick={capturePhoto}
-              disabled={capturing}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
-            >
-              {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-              {capturing ? 'Mengambil...' : 'Ambil Foto'}
-            </button>
-          </div>
-        </div>
       ) : (
-        <button
-          onClick={startPhotoCamera}
-          disabled={capturing}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white py-8 text-slate-400 transition hover:border-brand-blue/50 hover:text-brand-blue disabled:opacity-60"
-        >
-          {capturing ? <Loader2 className="size-7 animate-spin" /> : <Camera className="size-7" />}
-          <span className="text-sm font-semibold">Ambil Foto (opsional)</span>
-          <span className="text-xs">Diambil langsung dari kamera saat ini juga</span>
-        </button>
+        <>
+          <div className={cn('relative overflow-hidden rounded-2xl bg-slate-900', cameraOn ? '' : 'hidden')}>
+            <video ref={videoPhotoRef} autoPlay playsInline muted className="aspect-video w-full object-cover" />
+            <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
+              <button
+                onClick={stopPhotoCamera}
+                className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
+              >
+                Batal
+              </button>
+              <button
+                onClick={capturePhoto}
+                disabled={capturing}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
+              >
+                {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                {capturing ? 'Mengambil...' : 'Ambil Foto'}
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={startPhotoCamera}
+            disabled={capturing}
+            className={cn(
+              'flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white py-8 text-slate-400 transition hover:border-brand-blue/50 hover:text-brand-blue disabled:opacity-60',
+              cameraOn ? 'hidden' : '',
+            )}
+          >
+            {capturing ? <Loader2 className="size-7 animate-spin" /> : <Camera className="size-7" />}
+            <span className="text-sm font-semibold">Ambil Foto (opsional)</span>
+            <span className="text-xs">Diambil langsung dari kamera saat ini juga</span>
+          </button>
+        </>
       )}
       <input
         ref={fileRef}
