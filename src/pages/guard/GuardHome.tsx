@@ -15,6 +15,7 @@ export default function GuardHome() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [rounds, setRounds] = useState<RoundWithDetails[]>([])
+  const [logs, setLogs] = useState<Awaited<ReturnType<typeof getTodayPatrolLogs>>>([])
   const [scannedIds, setScannedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [pending, setPending] = useState(0)
@@ -34,6 +35,7 @@ export default function GuardHome() {
       const ids = new Set(logs.map((l) => l.checkpoint_id))
       queue.forEach((q) => ids.add(q.checkpoint_id))
       setRounds(r)
+      setLogs(logs)
       setScannedIds(ids)
       setPending(count)
       logClient('guardhome', 'load', 'berhasil', { rounds: r.length })
@@ -151,12 +153,20 @@ export default function GuardHome() {
       ) : (
         rounds.map((round) => {
           const points = round.round_checkpoints.slice().sort((a, b) => a.order_index - b.order_index)
-          const done = points.filter((p) => scannedIds.has(p.checkpoints.id)).length
           const now = new Date()
           const [sh, sm] = round.start_time.split(':').map(Number)
           const [eh, em] = round.end_time.split(':').map(Number)
           const start = new Date(now).setHours(sh, sm, 0, 0)
           const end = new Date(now).setHours(eh, em, 0, 0)
+          const pointIds = new Set(points.map((p) => p.checkpoints.id))
+          const roundLogs = logs.filter(
+            (l) =>
+              l.round_id === round.id ||
+              (pointIds.has(l.checkpoint_id) &&
+                new Date(l.scanned_at).getTime() >= start &&
+                new Date(l.scanned_at).getTime() <= end),
+          )
+          const done = new Set(roundLogs.map((l) => l.checkpoint_id)).size
           const isActive = now.getTime() >= start && now.getTime() <= end
           const isDone = done >= points.length && points.length > 0
           const status = isDone ? 'done' : isActive ? 'active' : 'waiting'
