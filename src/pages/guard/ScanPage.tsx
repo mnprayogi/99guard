@@ -382,21 +382,21 @@ export default function ScanPage() {
             </div>
           ) : (
             <>
-              <div className={cn('relative overflow-hidden rounded-3xl bg-slate-900', cameraOn ? '' : 'hidden')}>
-                <video ref={videoRef} autoPlay playsInline muted className="aspect-square w-full object-cover" />
-                <div className="absolute inset-x-0 bottom-0 flex gap-2 p-3">
+              <div className={cn('fixed inset-0 z-50 flex flex-col bg-black', cameraOn ? '' : 'hidden')}>
+                <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 p-6 pb-8">
                   <button
                     onClick={stopPhotoCamera}
-                    className="flex-1 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-700"
+                    className="rounded-full bg-white/20 px-6 py-4 text-sm font-semibold text-white"
                   >
                     Batal
                   </button>
                   <button
                     onClick={capturePhoto}
                     disabled={capturing}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-brand-blue disabled:opacity-60"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-full bg-white py-4 text-base font-bold text-brand-blue disabled:opacity-60"
                   >
-                    {capturing ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                    {capturing ? <Loader2 className="size-5 animate-spin" /> : <Camera className="size-5" />}
                     {capturing ? 'Mengambil...' : 'Ambil Foto'}
                   </button>
                 </div>
