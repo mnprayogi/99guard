@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { useAuth } from '@/context/AuthContext'
-import { findCheckpointByQr, getGuardTodayRounds } from '@/lib/api'
+import { findCheckpointByQr, getGuardTodayRounds, type RoundWithDetails } from '@/lib/api'
 import { compressImage, getPosition, uploadPhoto, blobToBase64, openCamera, stopCamera, captureVideoFrame } from '@/lib/photo'
 import { queuePatrolLog } from '@/lib/offline'
+import { db } from '@/lib/db'
 import { logClient } from '@/lib/debugLog'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -207,7 +208,14 @@ export default function ScanPage() {
       const pos = await getPosition()
 
       const today = new Date().toISOString().slice(0, 10)
-      const rounds = await getGuardTodayRounds(profile.id, today)
+      let rounds: RoundWithDetails[] = []
+      try {
+        rounds = await getGuardTodayRounds(profile.id, today)
+        await db.roundsCache.put({ date: today, rounds, saved_at: new Date().toISOString() })
+      } catch {
+        const cached = await db.roundsCache.get(today)
+        if (cached) rounds = cached.rounds
+      }
       const now = Date.now()
       const match = rounds.find((r) => {
         const [sh, sm] = r.start_time.split(':').map(Number)
@@ -216,6 +224,16 @@ export default function ScanPage() {
         const e = new Date().setHours(eh, em, 0, 0)
         return now >= s && now <= e && r.round_checkpoints.some((p) => p.checkpoints.id === checkpoint.id)
       })
+
+      if (!match) {
+        logClient('scan', 'submit', 'diblokir di luar ronde', { cpId: checkpoint.id, cached: !!rounds.length })
+        toast.error(
+          rounds.length === 0 && !navigator.onLine
+            ? 'Data ronde belum tersedia offline. Buka halaman Patroli saat online terlebih dahulu.'
+            : 'Titik ini tidak termasuk ronde aktif saat ini.',
+        )
+        return
+      }
 
       if (!navigator.onLine) {
         const log = {
@@ -417,7 +435,7 @@ export default function ScanPage() {
                 <span className="text-sm font-semibold">Foto Lokasi (wajib)</span>
                 <span className="text-xs">Diambil langsung dari kamera saat ini juga</span>
               </button>
-              <p className="text-center text-xs text-slate-400">
+              <p className="text-center text-xs text-slate-500">
                 Setelah foto diambil, tekan <b>Simpan Check-in</b> di bawah
               </p>
             </>
@@ -439,7 +457,7 @@ export default function ScanPage() {
             {submitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
             {submitting ? 'Menyimpan...' : 'Simpan Check-in'}
           </Button>
-          <p className="flex items-center justify-center gap-1.5 text-xs text-slate-400">
+          <p className="flex items-center justify-center gap-1.5 text-xs text-slate-500">
             <MapPin className="size-3.5" />
             Lokasi GPS akan dicatat otomatis
           </p>

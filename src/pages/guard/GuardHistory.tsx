@@ -47,8 +47,9 @@ export default function GuardHistory() {
                   className="size-14 shrink-0 rounded-xl object-cover"
                 />
               ) : (
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
-                  <MapPin className="size-5" />
+                <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                  <MapPin className="size-4" />
+                  <span className="mt-0.5 text-[8px] font-semibold text-slate-400">Diarsipkan</span>
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -64,7 +65,7 @@ export default function GuardHistory() {
                   })}
                 </p>
                 {log.lat && log.lng && (
-                  <p className="mt-0.5 text-[10px] text-slate-400">
+                  <p className="mt-0.5 text-[10px] text-slate-500">
                     {log.lat.toFixed(5)}, {log.lng.toFixed(5)}
                   </p>
                 )}

@@ -10,11 +10,12 @@ export interface RingPoint {
 interface WatchmanRingProps {
   done: number
   total: number
-  status: 'done' | 'active' | 'waiting'
+  status: 'done' | 'active' | 'waiting' | 'missed'
   points: RingPoint[]
   onPointClick?: (pointId: string) => void
   size?: number
   label?: string
+  tone?: 'light' | 'dark'
 }
 
 const TAU = Math.PI * 2
@@ -27,6 +28,7 @@ export default function WatchmanRing({
   onPointClick,
   size = 140,
   label,
+  tone = 'light',
 }: WatchmanRingProps) {
   const pct = total ? Math.round((done / total) * 100) : 0
   const [display, setDisplay] = useState(0)
@@ -54,7 +56,7 @@ export default function WatchmanRing({
   const arc = (pct / 100) * c
 
   const segRadius = r + stroke / 2 + 5
-  const segR = Math.max(3, size * 0.03)
+  const segR = Math.max(4, size * 0.035)
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -64,7 +66,7 @@ export default function WatchmanRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={status === 'waiting' ? '#e2e8f0' : '#eef2ff'}
+          stroke={status === 'waiting' ? '#e2e8f0' : status === 'missed' ? '#fecaca' : '#dbeafe'}
           strokeWidth={stroke}
         />
         <circle
@@ -72,7 +74,15 @@ export default function WatchmanRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={status === 'done' ? '#10b981' : status === 'active' ? 'url(#wg-grad)' : '#cbd5e1'}
+          stroke={
+            status === 'done'
+              ? '#10b981'
+              : status === 'missed'
+                ? '#ef4444'
+                : status === 'active'
+                  ? 'url(#wg-grad)'
+                  : '#cbd5e1'
+          }
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={`${arc} ${c - arc}`}
@@ -87,7 +97,7 @@ export default function WatchmanRing({
       </svg>
       <div className="absolute inset-0">
         {points.map((p, i) => {
-          const ang = (i / Math.max(points.length, 1)) * TAU
+          const ang = (i / Math.max(points.length, 1)) * TAU - Math.PI / 2
           const x = size / 2 + Math.cos(ang) * segRadius
           const y = size / 2 + Math.sin(ang) * segRadius
           return (
@@ -98,12 +108,14 @@ export default function WatchmanRing({
                 if (!p.scanned && onPointClick) onPointClick(p.id)
               }}
               className={cn(
-                'absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform active:scale-125',
+                'absolute -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white transition-transform active:scale-125',
                 p.scanned
                   ? 'bg-emerald-500 shadow-sm shadow-emerald-500/40'
-                  : status === 'active' && onPointClick
-                    ? 'cursor-pointer bg-slate-300 hover:scale-125 hover:bg-brand-blue'
-                    : 'bg-slate-300',
+                  : status === 'missed'
+                    ? 'bg-red-500 shadow-sm shadow-red-500/40'
+                    : status === 'active' && onPointClick
+                      ? 'cursor-pointer bg-slate-400 hover:scale-125 hover:bg-brand-blue'
+                      : 'bg-slate-400',
               )}
               style={{ left: x, top: y, width: segR * 2, height: segR * 2 }}
             />
@@ -114,13 +126,28 @@ export default function WatchmanRing({
         <span
           className={cn(
             'font-extrabold leading-none tabular-nums',
-            status === 'done' ? 'text-emerald-600' : 'text-slate-900',
+            status === 'done'
+              ? tone === 'dark'
+                ? 'text-emerald-300'
+                : 'text-emerald-600'
+              : status === 'missed'
+                ? tone === 'dark'
+                  ? 'text-red-300'
+                  : 'text-red-600'
+                : tone === 'dark'
+                  ? 'text-white'
+                  : 'text-slate-900',
           )}
           style={{ fontSize: size * 0.19 }}
         >
           {display}%
         </span>
-        <span className="mt-1 text-[10px] font-semibold text-slate-400">
+        <span
+          className={cn(
+            'mt-1 text-[10px] font-semibold',
+            tone === 'dark' ? 'text-blue-100' : 'text-slate-500',
+          )}
+        >
           {label ?? `${done}/${total} titik`}
         </span>
       </div>

@@ -7,7 +7,7 @@ import { syncNow } from '@/lib/offline'
 import { logClient } from '@/lib/debugLog'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Camera, CheckCircle2, MapPin, QrCode, RefreshCw, WifiOff } from 'lucide-react'
+import { Camera, CheckCircle2, MapPin, QrCode, RefreshCw, WifiOff, XCircle } from 'lucide-react'
 import WatchmanRing from '@/components/guard/WatchmanRing'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -34,12 +34,21 @@ export default function GuardHome() {
       ])
       const ids = new Set(logs.map((l) => l.checkpoint_id))
       queue.forEach((q) => ids.add(q.checkpoint_id))
+      await db.roundsCache.put({ date: today, rounds: r, saved_at: new Date().toISOString() })
       setRounds(r)
       setLogs(logs)
       setScannedIds(ids)
       setPending(count)
       logClient('guardhome', 'load', 'berhasil', { rounds: r.length })
     } catch {
+      const cached = await db.roundsCache.get(new Date().toISOString().slice(0, 10))
+      if (cached) {
+        setRounds(cached.rounds)
+        setLoading(false)
+        logClient('guardhome', 'load', 'fallback cache offline', { rounds: cached.rounds.length })
+        toast.info('Mode offline — menampilkan ronde dari cache')
+        return
+      }
       logClient('guardhome', 'load', 'gagal')
       toast.error('Gagal memuat data')
     } finally {
@@ -97,7 +106,7 @@ export default function GuardHome() {
       <div className="rounded-3xl bg-gradient-to-br from-brand-blue to-brand-blue-dark p-5 text-white shadow-md shadow-blue-900/20">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-blue-100">
+            <p className="text-xs font-medium text-blue-50">
               {new Date().toLocaleDateString('id-ID', {
                 weekday: 'long',
                 day: 'numeric',
@@ -106,7 +115,7 @@ export default function GuardHome() {
               })}
             </p>
             <h1 className="mt-1 text-xl font-bold">Halo, {profile?.full_name}</h1>
-            <p className="mt-1 text-sm text-blue-100">Siap menjalankan patroli hari ini?</p>
+            <p className="mt-1 text-sm text-blue-50">Siap menjalankan patroli hari ini?</p>
           </div>
           {!loading && (
             <div className="rounded-full bg-white/10 p-1.5">
@@ -118,6 +127,7 @@ export default function GuardHome() {
                 onPointClick={() => navigate('/patrol/scan')}
                 size={104}
                 label="hari ini"
+                tone="dark"
               />
             </div>
           )}
@@ -168,8 +178,9 @@ export default function GuardHome() {
           )
           const done = new Set(roundLogs.map((l) => l.checkpoint_id)).size
           const isActive = now.getTime() >= start && now.getTime() <= end
+          const isEnded = now.getTime() > end
           const isDone = done >= points.length && points.length > 0
-          const status = isDone ? 'done' : isActive ? 'active' : 'waiting'
+          const status = isDone ? 'done' : isEnded ? 'missed' : isActive ? 'active' : 'waiting'
 
           return (
             <div
@@ -177,6 +188,7 @@ export default function GuardHome() {
               className={cn(
                 'rounded-2xl border bg-white p-4 shadow-sm',
                 isActive ? 'border-brand-blue/40 ring-1 ring-brand-blue/20' : 'border-slate-200',
+                isEnded && !isDone && 'border-red-300 ring-1 ring-red-100',
               )}
             >
               <div className="flex items-center gap-4">
@@ -205,12 +217,14 @@ export default function GuardHome() {
                         'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
                         isDone
                           ? 'bg-emerald-100 text-emerald-700'
-                          : isActive
-                            ? 'bg-brand-blue-light text-brand-blue'
-                            : 'bg-slate-100 text-slate-500',
+                          : isEnded
+                            ? 'bg-red-100 text-red-700'
+                            : isActive
+                              ? 'bg-brand-blue-light text-brand-blue'
+                              : 'bg-slate-100 text-slate-500',
                       )}
                     >
-                      {isDone ? 'Selesai' : isActive ? 'Berjalan' : 'Menunggu'}
+                      {isDone ? 'Selesai' : isEnded ? `${points.length - done} terlewat` : isActive ? 'Berjalan' : 'Menunggu'}
                     </span>
                   </div>
 
@@ -224,11 +238,15 @@ export default function GuardHome() {
                             'flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium',
                             scanned
                               ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-slate-100 text-slate-500',
+                              : isEnded
+                                ? 'bg-red-50 text-red-600'
+                                : 'bg-slate-100 text-slate-600',
                           )}
                         >
                           {scanned ? (
                             <CheckCircle2 className="size-3" />
+                          ) : isEnded ? (
+                            <XCircle className="size-3" />
                           ) : (
                             <MapPin className="size-3" />
                           )}

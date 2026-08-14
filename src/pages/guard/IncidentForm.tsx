@@ -147,6 +147,7 @@ export default function IncidentForm() {
       if (!navigator.onLine) {
         await queueIncident({
           guard_id: profile.id,
+          site_id: profile.site_id,
           category,
           description: description.trim() || null,
           lat: pos?.lat ?? null,
@@ -163,6 +164,7 @@ export default function IncidentForm() {
         .from('incidents')
         .insert({
           guard_id: profile.id,
+          site_id: profile.site_id,
           category,
           description: description.trim() || null,
           lat: pos?.lat ?? null,
@@ -274,7 +276,7 @@ export default function IncidentForm() {
             onClick={startPhotoCamera}
             disabled={capturing}
             className={cn(
-              'flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white py-8 text-slate-400 transition hover:border-brand-blue/50 hover:text-brand-blue disabled:opacity-60',
+              'flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-400/70 bg-white py-8 text-slate-500 transition hover:border-brand-blue/50 hover:text-brand-blue disabled:opacity-60',
               cameraOn ? 'hidden' : '',
             )}
           >

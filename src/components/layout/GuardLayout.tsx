@@ -40,7 +40,7 @@ export default function GuardLayout() {
             </div>
             <div>
               <p className="text-sm font-bold leading-tight">99Guard</p>
-              <p className="text-[11px] leading-tight text-blue-100">
+              <p className="text-[11px] leading-tight text-blue-50">
                 {profile?.full_name || 'Satpam'}
               </p>
             </div>
@@ -88,7 +88,7 @@ export default function GuardLayout() {
               className={({ isActive }) =>
                 cn(
                   'flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium transition',
-                  isActive ? 'text-brand-blue' : 'text-slate-400 hover:text-slate-600',
+                  isActive ? 'text-brand-blue' : 'text-slate-500 hover:text-slate-700',
                 )
               }
             >

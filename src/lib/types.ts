@@ -86,7 +86,7 @@ export type Incident = {
 export type IncidentPhoto = {
   id: string
   incident_id: string
-  photo_url: string
+  photo_url: string | null
   created_at: string
 }
 

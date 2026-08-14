@@ -60,6 +60,7 @@ export async function syncNow(): Promise<{ synced: number; failed: number }> {
         .from('incidents')
         .insert({
           guard_id: item.guard_id,
+          site_id: item.site_id,
           category: item.category,
           description: item.description,
           lat: item.lat,

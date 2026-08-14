@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { getLivePatrolLogs } from '@/lib/api'
+import { getLivePatrolLogs, getTodayCompliance, type AssignmentCompliance } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -14,12 +14,14 @@ interface LiveLog {
   photo_url: string | null
   profiles: { full_name: string } | null
   checkpoints: { name: string } | null
+  rounds: { name: string; start_time: string; end_time: string; tolerance_minutes: number } | null
 }
 
 export default function Dashboard() {
   const { profile } = useAuth()
   const [logs, setLogs] = useState<LiveLog[]>([])
   const [openIncidents, setOpenIncidents] = useState(0)
+  const [compliance, setCompliance] = useState<AssignmentCompliance[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,7 +36,13 @@ export default function Dashboard() {
         if (!active) return
         setLogs(l as LiveLog[])
         setOpenIncidents(i.data?.length ?? 0)
-      } catch {
+        try {
+          setCompliance(await getTodayCompliance())
+        } catch (err) {
+          console.error('[Dashboard] getTodayCompliance gagal:', err)
+        }
+      } catch (err) {
+        console.error('[Dashboard] gagal memuat data:', err)
         toast.error('Gagal memuat data')
       } finally {
         if (active) setLoading(false)
@@ -51,6 +59,11 @@ export default function Dashboard() {
           const row = payload.new as LiveLog
           setLogs((prev) => [row, ...prev].slice(0, 50))
           setLoading(false)
+          try {
+            setCompliance(await getTodayCompliance())
+          } catch {
+            // abaikan — refresh berikutnya menangani
+          }
         },
       )
       .on(
@@ -75,6 +88,25 @@ export default function Dashboard() {
     month: 'long',
     year: 'numeric',
   })
+
+  const nowMs = Date.now()
+  const missedRounds = compliance.filter((c) => {
+    const [eh, em] = (c.endTime || '00:00').split(':').map(Number)
+    const end = new Date().setHours(eh, em, 0, 0)
+    return nowMs > end && c.missedIds.length > 0
+  })
+
+  function slaLabel(log: LiveLog): { label: string; cls: string } {
+    if (!log.rounds) return { label: 'Tanpa ronde', cls: 'bg-slate-100 text-slate-500' }
+    const [sh, sm] = log.rounds.start_time.split(':').map(Number)
+    const [eh, em] = log.rounds.end_time.split(':').map(Number)
+    const t = new Date(log.scanned_at).getTime()
+    const start = new Date().setHours(sh, sm, 0, 0) - log.rounds.tolerance_minutes * 60000
+    const end = new Date().setHours(eh, em, 0, 0)
+    if (t < start) return { label: 'Lebih awal', cls: 'bg-amber-100 text-amber-700' }
+    if (t > end) return { label: 'Terlambat', cls: 'bg-red-100 text-red-700' }
+    return { label: 'Tepat waktu', cls: 'bg-emerald-100 text-emerald-700' }
+  }
 
   const stats = [
     {
@@ -121,6 +153,41 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {missedRounds.length > 0 && (
+        <div className="space-y-2.5">
+          {missedRounds.map((m) => (
+            <div key={m.assignmentId} className="rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <AlertTriangle className="size-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-red-800">
+                    Ronde {m.roundName} selesai — {m.missedIds.length} titik terlewat
+                  </p>
+                  <p className="mt-0.5 text-xs text-red-600">
+                    {m.guardName} &middot; {m.doneCount}/{m.points.length} discan
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {m.missedIds.map((id) => {
+                      const pt = m.points.find((p) => p.id === id)
+                      return (
+                        <span
+                          key={id}
+                          className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700"
+                        >
+                          {pt?.name ?? 'Titik'}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-slate-900">Aktivitas Patroli Terkini</h2>
@@ -169,8 +236,14 @@ export default function Dashboard() {
                     minute: '2-digit',
                   })}
                 </p>
-                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                  <CheckCircle2 className="size-3" /> Tepat waktu
+                <span
+                  className={cn(
+                    'mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                    slaLabel(log).cls,
+                  )}
+                >
+                  {log.rounds ? <CheckCircle2 className="size-3" /> : <Clock className="size-3" />}{' '}
+                  {slaLabel(log).label}
                 </span>
               </div>
             </div>

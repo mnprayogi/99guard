@@ -45,11 +45,17 @@ export default function StoragePage() {
   async function load() {
     setLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke<Stats>('photos-admin?action=stats')
+      const { data, error } = await supabase.functions.invoke<Stats>('photos-admin?action=stats', {
+        method: 'GET',
+      })
       if (error) throw error
       setStats(data ?? null)
-    } catch {
-      toast.error('Gagal memuat statistik penyimpanan')
+    } catch (e) {
+      console.error('[StoragePage] gagal memuat statistik:', e)
+      const status = (e as { context?: { status?: number } })?.context?.status
+      toast.error(
+        status === 403 ? 'Hanya admin/superadmin yang dapat mengakses' : 'Gagal memuat statistik penyimpanan',
+      )
     } finally {
       setLoading(false)
     }
@@ -62,16 +68,23 @@ export default function StoragePage() {
   async function backup() {
     setBusy('backup')
     try {
-      const { data, error } = await supabase.functions.invoke('photos-admin?action=backup')
+      const { data, error } = await supabase.functions.invoke<{
+        url: string
+        fileName: string
+        failed: number
+      }>('photos-admin?action=backup', { method: 'GET' })
       if (error) throw error
-      const url = URL.createObjectURL(data as Blob)
+      if (!data?.url) throw new Error('URL backup kosong')
       const a = document.createElement('a')
-      a.href = url
-      a.download = `99guard-foto-backup-${new Date().toISOString().slice(0, 10)}.zip`
+      a.href = data.url
+      a.download = data.fileName
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
       toast.success('Backup berhasil diunduh')
+      if (data.failed > 0) toast.warning(`${data.failed} file gagal dibackup`)
     } catch (e) {
+      console.error('[StoragePage] backup gagal:', e)
       const msg = (e as { context?: { status?: number } })?.context?.status === 400
         ? 'Tidak ada file untuk dibackup'
         : 'Gagal membuat backup'
@@ -85,15 +98,20 @@ export default function StoragePage() {
     if (!stats?.items.length) return
     setBusy('archive')
     try {
-      const { data, error } = await supabase.functions.invoke<{ archived: number; failed: number }>(
+      const { data, error } = await supabase.functions.invoke<{ archived: number; failed: number; errors?: string[] }>(
         'photos-admin?action=archive',
         { body: { items: stats.items } },
       )
       if (error) throw error
       toast.success(`${data?.archived ?? 0} foto diarsipkan & dihapus dari storage`)
+      if (data?.failed) {
+        const first = data.errors?.[0]?.split(': ').slice(1).join(': ') ?? 'terjadi kesalahan'
+        toast.error(`${data.failed} foto gagal diarsipkan: ${first}`)
+      }
       setConfirmArchive(false)
       load()
-    } catch {
+    } catch (e) {
+      console.error('[StoragePage] arsip gagal:', e)
       toast.error('Gagal mengarsipkan foto')
     } finally {
       setBusy(null)
@@ -104,14 +122,19 @@ export default function StoragePage() {
     if (!stats?.orphanPaths.length) return
     setBusy('cleanup')
     try {
-      const { data, error } = await supabase.functions.invoke<{ archived: number; failed: number }>(
+      const { data, error } = await supabase.functions.invoke<{ archived: number; failed: number; errors?: string[] }>(
         'photos-admin?action=cleanup-orphans',
       )
       if (error) throw error
       toast.success(`${data?.archived ?? 0} file yatim dihapus`)
+      if (data?.failed) {
+        const first = data.errors?.[0]?.split(': ').slice(1).join(': ') ?? 'terjadi kesalahan'
+        toast.error(`${data.failed} file gagal dihapus: ${first}`)
+      }
       setConfirmCleanup(false)
       load()
-    } catch {
+    } catch (e) {
+      console.error('[StoragePage] cleanup gagal:', e)
       toast.error('Gagal membersihkan file yatim')
     } finally {
       setBusy(null)
@@ -209,7 +232,8 @@ export default function StoragePage() {
             <p className="mt-1.5">
               Setelah arsip, file dihapus dari storage dan <code className="rounded bg-slate-100 px-1">photo_url</code>{' '}
               menjadi kosong — foto tetap tercatat di tabel arsip (metadata + jalur penyimpanan) dan tampil sebagai
-              "Foto diarsipkan" di aplikasi. Backup ZIP menyimpan salinan file asli.
+              "Foto diarsipkan" di aplikasi. Backup ZIP menyimpan salinan file asli dan diunduh lewat tautan singkat
+              (file sementara di folder <code className="rounded bg-slate-100 px-1">backups/</code>, diganti tiap backup baru).
             </p>
           </div>
 

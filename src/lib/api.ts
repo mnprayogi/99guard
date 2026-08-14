@@ -108,10 +108,87 @@ export async function getLivePatrolLogs() {
   const today = new Date().toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('patrol_logs')
-    .select('*, profiles(full_name), checkpoints(name, site_id)')
+    .select(
+      '*, profiles(full_name), checkpoints(name, site_id), rounds(name, start_time, end_time, tolerance_minutes)',
+    )
     .gte('scanned_at', `${today}T00:00:00.000Z`)
     .order('scanned_at', { ascending: false })
     .limit(50)
   if (error) throw error
   return data
+}
+
+export interface AssignmentCompliance {
+  assignmentId: string
+  guardId: string
+  guardName: string
+  roundId: string
+  roundName: string
+  startTime: string
+  endTime: string
+  toleranceMinutes: number
+  points: { id: string; name: string }[]
+  scannedIds: Set<string>
+  missedIds: string[]
+  doneCount: number
+  status: 'waiting' | 'active' | 'done'
+}
+
+export async function getTodayCompliance() {
+  const today = new Date().toISOString().slice(0, 10)
+  const { data: assignments, error: aErr } = await supabase
+    .from('round_assignments')
+    .select(
+      'id, guard_id, rounds(id, name, start_time, end_time, tolerance_minutes, round_checkpoints(checkpoints(id, name))), profiles(full_name)',
+    )
+    .eq('date', today)
+  if (aErr) throw aErr
+
+  const { data: logs, error: lErr } = await supabase
+    .from('patrol_logs')
+    .select('checkpoint_id, round_id, scanned_at')
+    .gte('scanned_at', `${today}T00:00:00.000Z`)
+    .lte('scanned_at', `${today}T23:59:59.999Z`)
+  if (lErr) throw lErr
+
+  const now = new Date()
+  return (assignments ?? []).map((a) => {
+    const r = a.rounds
+    const points = (r?.round_checkpoints ?? []).map((rc) => rc.checkpoints)
+    const [sh, sm] = (r?.start_time ?? '00:00').split(':').map(Number)
+    const [eh, em] = (r?.end_time ?? '00:00').split(':').map(Number)
+    const start = new Date(now).setHours(sh, sm, 0, 0)
+    const end = new Date(now).setHours(eh, em, 0, 0)
+    const pointIds = new Set(points.map((p) => p.id))
+    const roundLogs = (logs ?? []).filter(
+      (l) =>
+        l.round_id === r?.id ||
+        (pointIds.has(l.checkpoint_id) &&
+          new Date(l.scanned_at).getTime() >= start &&
+          new Date(l.scanned_at).getTime() <= end),
+    )
+    const scannedIds = new Set(roundLogs.map((l) => l.checkpoint_id))
+    const missedIds = points.filter((p) => !scannedIds.has(p.id)).map((p) => p.id)
+    const status =
+      points.length > 0 && scannedIds.size >= points.length
+        ? 'done'
+        : now.getTime() >= start && now.getTime() <= end
+          ? 'active'
+          : 'waiting'
+    return {
+      assignmentId: a.id,
+      guardId: a.guard_id,
+      guardName: a.profiles?.full_name ?? 'Satpam',
+      roundId: r?.id ?? '',
+      roundName: r?.name ?? 'Ronde',
+      startTime: r?.start_time ?? '',
+      endTime: r?.end_time ?? '',
+      toleranceMinutes: r?.tolerance_minutes ?? 0,
+      points: points.map((p) => ({ id: p.id, name: p.name })),
+      scannedIds,
+      missedIds,
+      doneCount: scannedIds.size,
+      status,
+    } as AssignmentCompliance
+  })
 }

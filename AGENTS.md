@@ -27,11 +27,11 @@ e-Patroli Security System: PWA satpam + web admin (Vite + React + TS + Tailwind 
 - Deploy live, auth redirect OK (comma-separated uri_allow_list), login/rest/storage tervalidasi.
 - Foto HP: akar masalah = bundle lama di SW cache + `capture="environment"` me-recycle halaman Android + videoRef null. Fix final: foto dari stream kamera langsung (anti-manipulasi, full screen overlay), fallback `capture` sistem hanya jika getUserMedia ditolak. Galeri tidak dipakai.
 - Ronde GuardHome: status Selesai & badge hijau dihitung per-ronde dari `round_id` cocok ATAU `scanned_at` dalam jam ronde (bukan scan global hari ini).
-- Observability: tabel `client_logs` (RLS insert own) + edge fn `log-client` v2 + log di GuardHome/ScanPage/IncidentForm.
+- Observability: tabel `client_logs` (RLS insert own) + edge fn `log-client` v2 + log di GuardHome/ScanPage/IncidentForm/UsersPage(reset_password).
 - Password superadmin di-reset via `update auth.users set encrypted_password = crypt(...)` (lihat `.local/creds.md`).
+- Reset password via superadmin (UsersPage): bug lama = `auth.refresh_tokens.user_id` bertipe **varchar** (bukan uuid) → `where user_id = p_user_id` error `42883 operator does not exist: character varying = uuid`. Fix: `user_id = p_user_id::text` di RPC `admin_reset_password`. Tombol "Lupa Kata Sandi?" di Login dihapus (tidak pakai email — reset hanya via superadmin).
 
 ## Belum selesai / TODO
-- Tombol "Lupa Kata Sandi?" di `src/pages/Login.tsx` (baris ~142) belum punya handler (forgot password via email belum ada).
 - Lapor Insiden + foto belum diverifikasi penuh di HP produksi.
 - `supabase_get_advisors` belum dicek (security/performance).
 

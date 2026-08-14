@@ -47,6 +47,7 @@ export default function RoundsPage() {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<RoundRow | null>(null)
+  const [assignDates, setAssignDates] = useState<Record<string, string>>({})
 
   const [form, setForm] = useState({
     id: '',
@@ -71,7 +72,8 @@ export default function RoundsPage() {
       setSites(s)
       setCheckpoints(c)
       setGuards(g)
-    } catch {
+    } catch (e) {
+      console.error('[RoundsPage] gagal memuat ronde:', e)
       toast.error('Gagal memuat data ronde')
     } finally {
       setLoading(false)
@@ -188,19 +190,18 @@ export default function RoundsPage() {
     load()
   }
 
-  async function assignGuard(roundId: string, guardId: string) {
-    const today = new Date().toISOString().slice(0, 10)
+  async function assignGuard(roundId: string, guardId: string, date: string) {
     const { error } = await supabase.from('round_assignments').insert({
       round_id: roundId,
       guard_id: guardId,
-      date: today,
+      date,
     })
     if (error) {
       if (error.code === '23505') toast.error('Satpam sudah di-assign di ronde ini')
       else toast.error('Gagal assign')
       return
     }
-    toast.success('Satpam di-assign untuk hari ini')
+    toast.success(`Satpam di-assign untuk ${dateLabel(date)}`)
     load()
   }
 
@@ -219,8 +220,13 @@ export default function RoundsPage() {
     load()
   }
 
-  const todayAssignments = (r: RoundRow) =>
-    r.round_assignments.filter((a) => a.date === new Date().toISOString().slice(0, 10))
+  function dateLabel(d: string) {
+    const today = new Date().toISOString().slice(0, 10)
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    if (d === today) return 'hari ini'
+    if (d === tomorrow) return 'besok'
+    return new Date(`${d}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+  }
 
   return (
     <div className="space-y-5">
@@ -424,9 +430,19 @@ export default function RoundsPage() {
 
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
               <Users className="size-4 text-slate-400" />
-              <Select onValueChange={(gid) => assignGuard(round.id, gid)}>
+              <Input
+                type="date"
+                value={assignDates[round.id] ?? new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setAssignDates({ ...assignDates, [round.id]: e.target.value })}
+                className="h-9 w-40 rounded-full text-xs"
+              />
+              <Select
+                onValueChange={(gid) =>
+                  assignGuard(round.id, gid, assignDates[round.id] ?? new Date().toISOString().slice(0, 10))
+                }
+              >
                 <SelectTrigger className="h-9 w-44 rounded-full text-xs">
-                  <SelectValue placeholder="Assign satpam hari ini" />
+                  <SelectValue placeholder="Assign satpam" />
                 </SelectTrigger>
                 <SelectContent>
                   {guards.map((g) => (
@@ -436,21 +452,23 @@ export default function RoundsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {todayAssignments(round).map((a) => (
-                <span
-                  key={a.id}
-                  className="flex items-center gap-1.5 rounded-full bg-brand-blue-light px-3 py-1 text-[11px] font-semibold text-brand-blue"
-                >
-                  <CalendarDays className="size-3" />
-                  {a.profiles?.full_name ?? 'Satpam'}
-                  <button
-                    onClick={() => removeAssignment(a.id)}
-                    className="text-brand-blue/60 hover:text-red-500"
+              {[...round.round_assignments]
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .map((a) => (
+                  <span
+                    key={a.id}
+                    className="flex items-center gap-1.5 rounded-full bg-brand-blue-light px-3 py-1 text-[11px] font-semibold text-brand-blue"
                   >
-                    ×
-                  </button>
-                </span>
-              ))}
+                    <CalendarDays className="size-3" />
+                    {dateLabel(a.date)} &middot; {a.profiles?.full_name ?? 'Satpam'}
+                    <button
+                      onClick={() => removeAssignment(a.id)}
+                      className="text-brand-blue/60 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
             </div>
           </div>
         ))

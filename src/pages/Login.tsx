@@ -139,12 +139,6 @@ export default function Login() {
             >
               {loading ? 'Memproses...' : 'Masuk'}
             </button>
-            <button
-              type="button"
-              className="h-12 w-full rounded-full border border-slate-200 bg-slate-50 text-[14px] font-medium text-slate-700 transition-all duration-200 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Lupa Kata Sandi?
-            </button>
           </div>
         </form>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { logClient } from '@/lib/debugLog'
 import { getSites } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { KeyRound, Plus, ShieldCheck, UserCog } from 'lucide-react'
@@ -134,15 +135,18 @@ export default function UsersPage() {
   async function resetPassword() {
     if (!resetUser || !newPassword) return
     setResetting(true)
+    logClient('users', 'reset_password', 'mulai', { user: resetUser.full_name })
     const { error } = await supabase.rpc('admin_reset_password', {
       p_user_id: resetUser.id,
       p_new_password: newPassword,
     })
     setResetting(false)
     if (error) {
+      logClient('users', 'reset_password', 'gagal', { user: resetUser.full_name, message: error.message })
       toast.error(error.message)
       return
     }
+    logClient('users', 'reset_password', 'berhasil', { user: resetUser.full_name })
     toast.success('Password diperbarui')
     setResetUser(null)
     setNewPassword('')
@@ -299,7 +303,10 @@ export default function UsersPage() {
                 <Dialog open={resetUser?.id === u.id} onOpenChange={(o) => !o && setResetUser(null)}>
                   <DialogTrigger asChild>
                     <button
-                      onClick={() => setResetUser(u)}
+                      onClick={() => {
+                        setResetUser(u)
+                        setNewPassword('')
+                      }}
                       className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
                     >
                       <KeyRound className="size-3.5" /> Reset Password

@@ -55,6 +55,12 @@ const categoryLabel: Record<string, string> = {
   lainnya: 'Lainnya',
 }
 
+function storagePathFromUrl(url: string): string | null {
+  const marker = '/object/public/photos/'
+  const idx = url.indexOf(marker)
+  return idx < 0 ? null : url.slice(idx + marker.length)
+}
+
 export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,6 +70,7 @@ export default function IncidentsPage() {
   const [working, setWorking] = useState(false)
   const [deleting, setDeleting] = useState<IncidentRow | null>(null)
   const [deletingId, setDeletingId] = useState('')
+  const [deletingPhoto, setDeletingPhoto] = useState<{ id: string; photo_url: string | null } | null>(null)
 
   async function load() {
     setLoading(true)
@@ -135,6 +142,14 @@ export default function IncidentsPage() {
     if (!deleting) return
     setDeletingId(deleting.id)
     try {
+      const paths = (deleting.incident_photos ?? [])
+        .map((p) => (p.photo_url ? storagePathFromUrl(p.photo_url) : null))
+        .filter((x): x is string => !!x)
+      for (const p of paths) {
+        await supabase.functions.invoke('photos-admin?action=delete-photo', {
+          body: { storage_path: p },
+        })
+      }
       const { data, error } = await supabase
         .from('incidents')
         .delete()
@@ -150,10 +165,37 @@ export default function IncidentsPage() {
       if (detail?.id === deleting.id) setDetail(null)
       setDeleting(null)
       load()
-    } catch {
+    } catch (e) {
+      console.error('[IncidentsPage] gagal menghapus insiden:', e)
       toast.error('Gagal menghapus insiden')
     } finally {
       setDeletingId('')
+    }
+  }
+
+  async function removePhoto() {
+    if (!deletingPhoto) return
+    setWorking(true)
+    try {
+      const path = deletingPhoto.photo_url ? storagePathFromUrl(deletingPhoto.photo_url) : null
+      const { error } = await supabase.functions.invoke('photos-admin?action=delete-photo', {
+        body: { photo_id: deletingPhoto.id, storage_path: path ?? undefined },
+      })
+      if (error) throw error
+      if (detail) {
+        setDetail({
+          ...detail,
+          incident_photos: detail.incident_photos.filter((p) => p.id !== deletingPhoto.id),
+        })
+      }
+      setDeletingPhoto(null)
+      toast.success('Foto dihapus')
+      load()
+    } catch (e) {
+      console.error('[IncidentsPage] gagal menghapus foto:', e)
+      toast.error('Gagal menghapus foto')
+    } finally {
+      setWorking(false)
     }
   }
 
@@ -243,11 +285,20 @@ export default function IncidentsPage() {
                 </p>
 
                 {inc.incident_photos.length > 0 && inc.incident_photos[0].photo_url && (
-                  <img
-                    src={inc.incident_photos[0].photo_url}
-                    alt="Foto insiden"
-                    className="aspect-video w-full rounded-2xl object-cover"
-                  />
+                  <div className="relative">
+                    <img
+                      src={inc.incident_photos[0].photo_url}
+                      alt="Foto insiden"
+                      className="aspect-video w-full rounded-2xl object-cover"
+                    />
+                    <button
+                      onClick={() => setDeletingPhoto(inc.incident_photos[0])}
+                      className="absolute top-2 right-2 rounded-full bg-black/50 p-2 text-white transition hover:bg-red-600"
+                      title="Hapus foto"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 )}
                 {inc.incident_photos.length > 0 && !inc.incident_photos[0].photo_url && (
                   <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-2xl bg-slate-100">
@@ -318,6 +369,27 @@ export default function IncidentsPage() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deletingPhoto} onOpenChange={(o) => !o && setDeletingPhoto(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus foto insiden ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Foto akan dihapus dari penyimpanan dan tidak dapat dikembalikan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={working}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={removePhoto}
+              disabled={working}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {working ? 'Menghapus...' : 'Hapus Foto'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
