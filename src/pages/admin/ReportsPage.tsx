@@ -65,6 +65,7 @@ interface AssignRow {
 interface GuardDetail {
   name: string
   rounds: string[]
+  required: number
   visited: number
   missed: number
   total: number
@@ -245,6 +246,7 @@ export default function ReportsPage() {
       const cur = map.get(key) ?? {
         name: key,
         rounds: [],
+        required: 0,
         visited: 0,
         missed: 0,
         total: 0,
@@ -262,6 +264,7 @@ export default function ReportsPage() {
       const cur = map.get(r.guardName) ?? {
         name: r.guardName,
         rounds: [],
+        required: 0,
         visited: 0,
         missed: 0,
         total: 0,
@@ -270,6 +273,7 @@ export default function ReportsPage() {
         lastScan: null,
       }
       if (!cur.rounds.includes(r.roundName)) cur.rounds.push(r.roundName)
+      cur.required += r.points.length
       cur.visited += r.doneCount
       if (r.ended) cur.missed += r.missed.length
       map.set(r.guardName, cur)
@@ -411,10 +415,11 @@ export default function ReportsPage() {
         doc.text('Kinerja & Log Presensi Satpam', 14, y)
         autoTable(doc, {
           startY: y + 2,
-          head: [['Satpam', 'Ronde / Shift', 'Titik dikunjungi', 'Titik missed', 'Tepat waktu', 'Scan pertama', 'Scan terakhir']],
+          head: [['Satpam', 'Ronde / Shift', 'Titik wajib', 'Titik dikunjungi', 'Titik missed', 'Tepat waktu', 'Scan pertama', 'Scan terakhir']],
           body: perGuardDetail.map((g) => [
             g.name,
             g.rounds.join(', ') || '—',
+            String(g.required),
             String(g.visited),
             String(g.missed),
             `${g.onTime}/${g.total}`,
@@ -686,6 +691,12 @@ export default function ReportsPage() {
                         </dt>
                         <dd className="mt-0.5 font-medium text-slate-700">{g.rounds.join(', ') || '—'}</dd>
                       </div>
+                      <div className="col-span-2">
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Total titik wajib
+                        </dt>
+                        <dd className="mt-0.5 font-medium text-slate-700">{g.required}</dd>
+                      </div>
                       <div>
                         <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
                           Titik dikunjungi
@@ -730,6 +741,7 @@ export default function ReportsPage() {
                     <TableRow>
                       <TableHead>Satpam</TableHead>
                       <TableHead>Ronde / Shift</TableHead>
+                      <TableHead className="text-center">Titik wajib</TableHead>
                       <TableHead className="text-center">Titik dikunjungi</TableHead>
                       <TableHead className="text-center">Titik missed</TableHead>
                       <TableHead className="text-center">Tepat waktu</TableHead>
@@ -742,6 +754,7 @@ export default function ReportsPage() {
                       <TableRow key={g.name}>
                         <TableCell className="font-semibold text-slate-800">{g.name}</TableCell>
                         <TableCell className="text-xs text-slate-500">{g.rounds.join(', ') || '—'}</TableCell>
+                        <TableCell className="text-center font-semibold text-slate-700">{g.required}</TableCell>
                         <TableCell className="text-center text-slate-700">{g.visited}</TableCell>
                         <TableCell className={cn('text-center', g.missed > 0 ? 'font-bold text-red-600' : 'text-slate-700')}>
                           {g.missed}
