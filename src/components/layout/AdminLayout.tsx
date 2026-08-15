@@ -114,7 +114,7 @@ export default function AdminLayout() {
         </SheetContent>
       </Sheet>
 
-      <main className="min-h-dvh flex-1 px-4 py-4 sm:px-6 lg:ml-64 lg:px-8 lg:py-6">
+      <main className="min-h-dvh flex-1 px-4 pb-4 pt-14 sm:px-6 lg:ml-64 lg:px-8 lg:py-6">
         <Outlet />
       </main>
     </div>
