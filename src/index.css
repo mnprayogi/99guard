@@ -66,6 +66,19 @@
   --chart-5: oklch(0.645 0.246 16.439);
 }
 
+@theme {
+  --animate-wave: wave-shift 10s linear infinite;
+
+  @keyframes wave-shift {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+
 @theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --color-brand-blue: var(--brand-blue);

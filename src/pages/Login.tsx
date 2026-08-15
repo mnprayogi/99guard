@@ -48,17 +48,24 @@ export default function Login() {
           </div>
         </div>
         <svg
-          className="absolute bottom-[-1px] left-0 w-full text-white dark:text-slate-950"
-          viewBox="0 0 1440 70"
+          className="absolute bottom-[-1px] left-0 w-[200%] text-white dark:text-slate-950"
+          viewBox="0 0 2880 70"
           fill="currentColor"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
-          <path d="M0,40 C240,70 480,10 720,30 C960,50 1200,60 1440,30 L1440,70 L0,70 Z" />
-          <path
-            d="M0,55 C240,20 480,65 720,48 C960,31 1200,55 1440,42 L1440,70 L0,70 Z"
-            opacity="0.4"
-          />
+          <g className="animate-wave motion-reduce:animate-none">
+            <path d="M0,32 C240,72 480,8 720,32 C960,56 1200,8 1440,32 L1440,70 L0,70 Z" />
+            <path
+              d="M0,50 C240,24 480,58 720,50 C960,40 1200,58 1440,50 L1440,70 L0,70 Z"
+              opacity="0.4"
+            />
+            <path d="M1440,32 C1680,72 1920,8 2160,32 C2400,56 2640,8 2880,32 L2880,70 L1440,70 Z" />
+            <path
+              d="M1440,50 C1680,24 1920,58 2160,50 C2400,40 2640,58 2880,50 L2880,70 L1440,70 Z"
+              opacity="0.4"
+            />
+          </g>
         </svg>
       </header>
 

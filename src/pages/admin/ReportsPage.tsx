@@ -85,6 +85,9 @@ const categoryLabel: Record<string, string> = {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+const scrollbarCls =
+  '[scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300'
+
 function isOnTime(log: LogRow): boolean {
   if (!log.rounds) return false
   const [sh, sm] = log.rounds.start_time.split(':').map(Number)
@@ -111,6 +114,13 @@ const fmtDate = (s: string) =>
     month: 'long',
     year: 'numeric',
   })
+
+const slaBadgeCls = (g: GuardDetail) =>
+  g.total > 0 && g.onTime / g.total >= 0.8
+    ? 'bg-emerald-50 text-emerald-600'
+    : g.total > 0
+      ? 'bg-amber-50 text-amber-600'
+      : 'bg-slate-100 text-slate-400'
 
 export default function ReportsPage() {
   const { profile } = useAuth()
@@ -485,66 +495,76 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">Laporan & Rekap</h1>
-        <p className="text-sm text-slate-500">
-          Rekap {fmtDate(fromDate)}
-          {fromDate !== toDate && ` – ${fmtDate(toDate)}`}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          type="date"
-          value={fromDate}
-          max={toDate}
-          onChange={(e) => {
-            const v = e.target.value
-            if (!v) return
-            if (v > toDate) {
-              setFromDate(toDate)
-              setToDate(v)
-            } else {
-              setFromDate(v)
-            }
-          }}
-          className="h-10 w-40 rounded-full text-sm"
-        />
-        <span className="text-xs text-slate-400">s/d</span>
-        <Input
-          type="date"
-          value={toDate}
-          min={fromDate}
-          onChange={(e) => {
-            const v = e.target.value
-            if (!v) return
-            if (v < fromDate) {
-              setToDate(fromDate)
-              setFromDate(v)
-            } else {
-              setToDate(v)
-            }
-          }}
-          className="h-10 w-40 rounded-full text-sm"
-        />
-        <Button
-          onClick={exportPdf}
-          disabled={exporting}
-          className="ml-auto h-10 rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark px-4 text-xs font-bold shadow-sm"
-        >
-          <Download className="size-4" />
-          {exporting ? 'Membuat PDF...' : 'Unduh PDF'}
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {cards.map((c) => (
-          <div key={c.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className={cn('mb-2 flex size-9 items-center justify-center rounded-full', c.cls)}>
-              <c.icon className="size-4.5" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900">Laporan &amp; Rekap</h1>
+            <p className="truncate text-sm text-slate-500">
+              Rekap {fmtDate(fromDate)}
+              {fromDate !== toDate && ` – ${fmtDate(toDate)}`}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 lg:gap-3">
+            <div className="grid flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <Input
+                type="date"
+                value={fromDate}
+                max={toDate}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (!v) return
+                  if (v > toDate) {
+                    setFromDate(toDate)
+                    setToDate(v)
+                  } else {
+                    setFromDate(v)
+                  }
+                }}
+                className="h-10 w-full rounded-full text-sm"
+              />
+              <span className="text-xs text-slate-400">s/d</span>
+              <Input
+                type="date"
+                value={toDate}
+                min={fromDate}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (!v) return
+                  if (v < fromDate) {
+                    setToDate(fromDate)
+                    setFromDate(v)
+                  } else {
+                    setToDate(v)
+                  }
+                }}
+                className="h-10 w-full rounded-full text-sm"
+              />
             </div>
-            <p className="text-2xl font-bold text-slate-900">{c.value}</p>
-            <p className="text-xs font-medium text-slate-500">{c.label}</p>
+            <Button
+              onClick={exportPdf}
+              disabled={exporting}
+              className="h-10 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark px-4 text-xs font-bold shadow-sm sm:w-auto"
+            >
+              <Download className="size-4" />
+              {exporting ? 'Membuat PDF...' : 'Unduh PDF'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {cards.map((c) => (
+          <div
+            key={c.label}
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
+          >
+            <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', c.cls)}>
+              <c.icon className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold leading-tight text-slate-900">{c.value}</p>
+              <p className="truncate text-[11px] font-medium text-slate-500">{c.label}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -560,8 +580,9 @@ export default function ReportsPage() {
         {slaTrend.every((p) => p.scans === 0) ? (
           <p className="py-6 text-center text-sm text-slate-400">Belum ada data scan pada periode ini</p>
         ) : (
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className={cn('h-52 w-full overflow-x-auto sm:h-64', scrollbarCls)}>
+            <div className="h-full min-w-[440px] sm:min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={slaTrend} margin={{ top: 5, right: 5, bottom: 0, left: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
@@ -615,6 +636,7 @@ export default function ReportsPage() {
                 />
               </ComposedChart>
             </ResponsiveContainer>
+            </div>
           </div>
         )}
       </div>
@@ -625,7 +647,7 @@ export default function ReportsPage() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              'flex-1 rounded-full px-4 py-2.5 text-xs font-bold transition',
+              'flex-1 rounded-full px-2 py-2.5 text-xs font-bold transition sm:px-4',
               tab === t.key
                 ? 'bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white shadow-sm'
                 : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
@@ -647,47 +669,96 @@ export default function ReportsPage() {
           {perGuardDetail.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">Belum ada data scan pada periode ini</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Satpam</TableHead>
-                  <TableHead>Ronde / Shift</TableHead>
-                  <TableHead className="text-center">Titik dikunjungi</TableHead>
-                  <TableHead className="text-center">Titik missed</TableHead>
-                  <TableHead className="text-center">Tepat waktu</TableHead>
-                  <TableHead>Scan pertama</TableHead>
-                  <TableHead>Scan terakhir</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="space-y-3 sm:hidden">
                 {perGuardDetail.map((g) => (
-                  <TableRow key={g.name}>
-                    <TableCell className="font-semibold text-slate-800">{g.name}</TableCell>
-                    <TableCell className="text-xs text-slate-500">{g.rounds.join(', ') || '—'}</TableCell>
-                    <TableCell className="text-center text-slate-700">{g.visited}</TableCell>
-                    <TableCell className={cn('text-center', g.missed > 0 ? 'font-bold text-red-600' : 'text-slate-700')}>
-                      {g.missed}
-                    </TableCell>
-                    <TableCell className="text-center text-slate-700">
-                      <span
-                        className={cn(
-                          'rounded-full px-2 py-0.5 text-[10px] font-bold',
-                          g.total > 0 && g.onTime / g.total >= 0.8
-                            ? 'bg-emerald-50 text-emerald-600'
-                            : g.total > 0
-                              ? 'bg-amber-50 text-amber-600'
-                              : 'bg-slate-100 text-slate-400',
-                        )}
-                      >
+                  <div key={g.name} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 truncate text-sm font-bold text-slate-900">{g.name}</p>
+                      <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold', slaBadgeCls(g))}>
                         {g.onTime}/{g.total}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-slate-500">{fmtDT(g.firstScan)}</TableCell>
-                    <TableCell className="text-xs text-slate-500">{fmtDT(g.lastScan)}</TableCell>
-                  </TableRow>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 text-xs">
+                      <div>
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Ronde / Shift
+                        </dt>
+                        <dd className="mt-0.5 font-medium text-slate-700">{g.rounds.join(', ') || '—'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Titik dikunjungi
+                        </dt>
+                        <dd className="mt-0.5 font-medium text-slate-700">{g.visited}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Titik missed
+                        </dt>
+                        <dd className={cn('mt-0.5 font-medium', g.missed > 0 ? 'font-bold text-red-600' : 'text-slate-700')}>
+                          {g.missed}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Tepat waktu
+                        </dt>
+                        <dd className="mt-0.5 font-medium text-slate-700">
+                          {g.onTime}/{g.total}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Scan pertama
+                        </dt>
+                        <dd className="mt-0.5 font-medium text-slate-700">{fmtDT(g.firstScan)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          Scan terakhir
+                        </dt>
+                        <dd className="mt-0.5 font-medium text-slate-700">{fmtDT(g.lastScan)}</dd>
+                      </div>
+                    </dl>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+              <div className="hidden sm:block">
+                <Table className={scrollbarCls}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Satpam</TableHead>
+                      <TableHead>Ronde / Shift</TableHead>
+                      <TableHead className="text-center">Titik dikunjungi</TableHead>
+                      <TableHead className="text-center">Titik missed</TableHead>
+                      <TableHead className="text-center">Tepat waktu</TableHead>
+                      <TableHead>Scan pertama</TableHead>
+                      <TableHead>Scan terakhir</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {perGuardDetail.map((g) => (
+                      <TableRow key={g.name}>
+                        <TableCell className="font-semibold text-slate-800">{g.name}</TableCell>
+                        <TableCell className="text-xs text-slate-500">{g.rounds.join(', ') || '—'}</TableCell>
+                        <TableCell className="text-center text-slate-700">{g.visited}</TableCell>
+                        <TableCell className={cn('text-center', g.missed > 0 ? 'font-bold text-red-600' : 'text-slate-700')}>
+                          {g.missed}
+                        </TableCell>
+                        <TableCell className="text-center text-slate-700">
+                          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', slaBadgeCls(g))}>
+                            {g.onTime}/{g.total}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-500">{fmtDT(g.firstScan)}</TableCell>
+                        <TableCell className="text-xs text-slate-500">{fmtDT(g.lastScan)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </div>
       ) : tab === 'ronde' ? (
@@ -702,7 +773,7 @@ export default function ReportsPage() {
             <div className="space-y-3">
               {perRound.map((r) => (
                 <div key={r.id} className="rounded-xl border border-slate-100 p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-bold text-slate-800">
                       {r.roundName} <span className="font-medium text-slate-400">· {r.guardName}</span>
                     </p>
@@ -754,7 +825,7 @@ export default function ReportsPage() {
           ) : (
             <div className="space-y-3">
               {perCheckpoint.map((c) => (
-                <div key={c.name} className="flex items-center gap-3">
+                <div key={c.name} className="flex flex-wrap items-center gap-3">
                   <span className="w-40 truncate text-xs font-semibold text-slate-700">{c.name}</span>
                   <span className="rounded-full bg-brand-blue-light px-2.5 py-0.5 text-[11px] font-bold text-brand-blue">
                     {c.count}x
