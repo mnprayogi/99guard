@@ -11,7 +11,6 @@ import {
   MapPinned,
   Menu,
   Route,
-  ShieldCheck,
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -43,9 +42,7 @@ export default function AdminLayout() {
   const content = (
     <>
       <div className="flex items-center gap-2.5 px-4 pb-6 pt-5">
-        <div className="flex size-9 items-center justify-center rounded-full bg-white">
-          <ShieldCheck className="size-5 text-brand-blue" />
-        </div>
+        <img src="/logo.png" alt="99Guard" className="size-9 rounded-full object-cover ring-2 ring-white/60" />
         <div>
           <p className="text-sm font-bold leading-tight text-white">99Guard</p>
           <p className="text-[11px] leading-tight text-blue-200">Panel Admin</p>

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
-import { ShieldCheck } from 'lucide-react'
 import ConnectedDots from '@/components/ConnectedDots'
 
 export default function Login() {
@@ -40,7 +39,7 @@ export default function Login() {
         />
         <div className="relative z-10 flex flex-col items-center gap-4 px-6 text-center">
           <div className="flex size-20 items-center justify-center rounded-full bg-white shadow-lg shadow-blue-900/30">
-            <ShieldCheck className="size-10 text-brand-blue" />
+            <img src="/logo.png" alt="99Guard" className="size-20 rounded-full object-cover" />
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">99Guard</h1>

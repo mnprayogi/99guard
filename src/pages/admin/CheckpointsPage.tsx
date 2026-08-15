@@ -334,8 +334,6 @@ export default function CheckpointsPage() {
                 qrCode={qrPoint?.qr_code ?? ''}
                 site={qrPoint?.sites?.name ?? ''}
                 description={qrPoint?.description ?? null}
-                lat={qrPoint?.lat ?? null}
-                lng={qrPoint?.lng ?? null}
                 qrDataUrl={qrDataUrl}
               />
             </div>

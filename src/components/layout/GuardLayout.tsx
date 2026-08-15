@@ -35,9 +35,7 @@ export default function GuardLayout() {
       <header className="sticky top-0 z-30 bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white shadow-md shadow-blue-900/20">
         <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-full bg-white">
-              <ShieldCheck className="size-5 text-brand-blue" />
-            </div>
+            <img src="/logo.png" alt="99Guard" className="size-9 rounded-full object-cover ring-2 ring-white/60" />
             <div>
               <p className="text-sm font-bold leading-tight">99Guard</p>
               <p className="text-[11px] leading-tight text-blue-50">
