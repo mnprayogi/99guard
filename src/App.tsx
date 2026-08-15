@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
@@ -12,11 +13,12 @@ import GuardHistory from '@/pages/guard/GuardHistory'
 import Dashboard from '@/pages/admin/Dashboard'
 import RoundsPage from '@/pages/admin/RoundsPage'
 import IncidentsPage from '@/pages/admin/IncidentsPage'
-import ReportsPage from '@/pages/admin/ReportsPage'
 import UsersPage from '@/pages/admin/UsersPage'
 import SitesPage from '@/pages/admin/SitesPage'
 import StoragePage from '@/pages/admin/StoragePage'
 import CheckpointsPage from '@/pages/admin/CheckpointsPage'
+
+const ReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
 
 function HomeRedirect() {
   const { profile, loading } = useAuth()
@@ -29,6 +31,14 @@ function HomeRedirect() {
   }
   if (!profile) return <Navigate to="/login" replace />
   return <Navigate to={profile.role === 'satpam' ? '/patrol' : '/admin'} replace />
+}
+
+function RouteFallback() {
+  return (
+    <div className="flex h-64 items-center justify-center">
+      <div className="size-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-blue" />
+    </div>
+  )
 }
 
 export default function App() {
@@ -53,7 +63,7 @@ export default function App() {
               <Route path="/admin" element={<Dashboard />} />
               <Route path="/admin/ronde" element={<RoundsPage />} />
               <Route path="/admin/insiden" element={<IncidentsPage />} />
-              <Route path="/admin/laporan" element={<ReportsPage />} />
+              <Route path="/admin/laporan" element={<Suspense fallback={<RouteFallback />}><ReportsPage /></Suspense>} />
             </Route>
           </Route>
 
