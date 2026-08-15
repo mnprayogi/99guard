@@ -117,11 +117,14 @@ const fmtDate = (s: string) =>
   })
 
 const slaBadgeCls = (g: GuardDetail) =>
-  g.total > 0 && g.onTime / g.total >= 0.8
+  g.required > 0 && g.visited / g.required >= 0.8
     ? 'bg-emerald-50 text-emerald-600'
-    : g.total > 0
+    : g.required > 0
       ? 'bg-amber-50 text-amber-600'
       : 'bg-slate-100 text-slate-400'
+
+const slaPct = (g: GuardDetail) =>
+  g.required > 0 ? Math.round((g.visited / g.required) * 100) : null
 
 export default function ReportsPage() {
   const { profile } = useAuth()
@@ -192,18 +195,6 @@ export default function ReportsPage() {
     for (const inc of incidents) catCount.set(inc.category, (catCount.get(inc.category) ?? 0) + 1)
     return { total, open, inProgress, resolved, avgResponseMs, catCount }
   }, [logs, incidents])
-
-  const perGuard = useMemo(() => {
-    const map = new Map<string, { name: string; total: number; onTime: number }>()
-    for (const log of logs) {
-      const key = log.profiles?.full_name ?? 'Satpam'
-      const cur = map.get(key) ?? { name: key, total: 0, onTime: 0 }
-      cur.total++
-      if (isOnTime(log)) cur.onTime++
-      map.set(key, cur)
-    }
-    return [...map.values()]
-  }, [logs])
 
   const perRound = useMemo(() => {
     const now = Date.now()
@@ -296,14 +287,21 @@ export default function ReportsPage() {
       copy.setDate(copy.getDate() - day)
       return copy
     }
-    const per = new Map<string, { onTime: number; total: number }>()
+    const per = new Map<string, { done: number; required: number }>()
+    const scans = new Map<string, number>()
+    for (const r of perRound) {
+      if (r.points.length === 0 || (!r.ended && r.doneCount < r.points.length)) continue
+      const d = new Date(`${r.date}T00:00:00`)
+      const key = keyOf(weekly ? weekStartOf(d) : d)
+      const cur = per.get(key) ?? { done: 0, required: 0 }
+      cur.done += r.doneCount
+      cur.required += r.points.length
+      per.set(key, cur)
+    }
     for (const log of logs) {
       const d = new Date(`${log.scanned_at.slice(0, 10)}T00:00:00`)
       const key = keyOf(weekly ? weekStartOf(d) : d)
-      const cur = per.get(key) ?? { onTime: 0, total: 0 }
-      cur.total++
-      if (isOnTime(log)) cur.onTime++
-      per.set(key, cur)
+      scans.set(key, (scans.get(key) ?? 0) + 1)
     }
     const out: { key: string; label: string; sla: number; scans: number }[] = []
     const start = new Date(`${fromDate}T00:00:00`)
@@ -311,16 +309,16 @@ export default function ReportsPage() {
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const key = keyOf(weekly ? weekStartOf(d) : d)
       if (out.length > 0 && out[out.length - 1].key === key) continue
-      const v = per.get(key) ?? { onTime: 0, total: 0 }
+      const v = per.get(key)
       out.push({
         key,
         label: `${key.slice(8, 10)}/${key.slice(5, 7)}`,
-        sla: v.total > 0 ? Math.round((v.onTime / v.total) * 100) : 0,
-        scans: v.total,
+        sla: v && v.required > 0 ? Math.round((v.done / v.required) * 100) : 0,
+        scans: scans.get(key) ?? 0,
       })
     }
     return out
-  }, [logs, rangeDays, fromDate, toDate])
+  }, [perRound, logs, rangeDays, fromDate, toDate])
 
   const perCheckpoint = useMemo(() => {
     const map = new Map<
@@ -340,8 +338,15 @@ export default function ReportsPage() {
     return [...map.values()]
   }, [logs])
 
-  const compliance = perGuard.length
-    ? Math.round((perGuard.reduce((n, r) => n + r.onTime, 0) / Math.max(1, perGuard.reduce((n, r) => n + r.total, 0))) * 100)
+  const slaRounds = perRound.filter(
+    (r) => r.points.length > 0 && (r.ended || r.doneCount >= r.points.length),
+  )
+  const compliance = slaRounds.length
+    ? Math.round(
+        (slaRounds.reduce((n, r) => n + r.doneCount, 0) /
+          slaRounds.reduce((n, r) => n + r.points.length, 0)) *
+          100,
+      )
     : 0
 
   const cards = [
@@ -415,13 +420,14 @@ export default function ReportsPage() {
         doc.text('Kinerja & Log Presensi Satpam', 14, y)
         autoTable(doc, {
           startY: y + 2,
-          head: [['Satpam', 'Ronde / Shift', 'Titik wajib', 'Titik dikunjungi', 'Titik missed', 'Tepat waktu', 'Scan pertama', 'Scan terakhir']],
+          head: [['Satpam', 'Ronde / Shift', 'Titik wajib', 'Titik dikunjungi', 'Titik missed', 'Kepatuhan SLA', 'Tepat waktu', 'Scan pertama', 'Scan terakhir']],
           body: perGuardDetail.map((g) => [
             g.name,
             g.rounds.join(', ') || '—',
             String(g.required),
             String(g.visited),
             String(g.missed),
+            slaPct(g) !== null ? `${slaPct(g)}%` : '—',
             `${g.onTime}/${g.total}`,
             fmtDT(g.firstScan),
             fmtDT(g.lastScan),
@@ -681,7 +687,7 @@ export default function ReportsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="min-w-0 truncate text-sm font-bold text-slate-900">{g.name}</p>
                       <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold', slaBadgeCls(g))}>
-                        {g.onTime}/{g.total}
+                        {slaPct(g) !== null ? `${slaPct(g)}%` : '—'}
                       </span>
                     </div>
                     <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 text-xs">
@@ -744,7 +750,7 @@ export default function ReportsPage() {
                       <TableHead className="text-center">Titik wajib</TableHead>
                       <TableHead className="text-center">Titik dikunjungi</TableHead>
                       <TableHead className="text-center">Titik missed</TableHead>
-                      <TableHead className="text-center">Tepat waktu</TableHead>
+                      <TableHead className="text-center">Kepatuhan SLA</TableHead>
                       <TableHead>Scan pertama</TableHead>
                       <TableHead>Scan terakhir</TableHead>
                     </TableRow>
@@ -759,10 +765,15 @@ export default function ReportsPage() {
                         <TableCell className={cn('text-center', g.missed > 0 ? 'font-bold text-red-600' : 'text-slate-700')}>
                           {g.missed}
                         </TableCell>
-                        <TableCell className="text-center text-slate-700">
-                          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', slaBadgeCls(g))}>
-                            {g.onTime}/{g.total}
-                          </span>
+                        <TableCell className="text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', slaBadgeCls(g))}>
+                              {slaPct(g) !== null ? `${slaPct(g)}%` : '—'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {g.onTime}/{g.total} tepat waktu
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-slate-500">{fmtDT(g.firstScan)}</TableCell>
                         <TableCell className="text-xs text-slate-500">{fmtDT(g.lastScan)}</TableCell>
