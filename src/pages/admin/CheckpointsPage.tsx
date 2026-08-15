@@ -53,6 +53,9 @@ export default function CheckpointsPage() {
   const [deleting, setDeleting] = useState<CheckpointRow | null>(null)
   const [qrPoint, setQrPoint] = useState<CheckpointRow | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState('')
+  const [printAllOpen, setPrintAllOpen] = useState(false)
+  const [printAllLoading, setPrintAllLoading] = useState(false)
+  const [printAllData, setPrintAllData] = useState<{ point: CheckpointRow; dataUrl: string }[]>([])
 
   async function load() {
     setLoading(true)
@@ -90,6 +93,35 @@ export default function CheckpointsPage() {
       setQrDataUrl(url)
     } catch {
       toast.error('Gagal membuat QR')
+    }
+  }
+
+  async function showAllQr() {
+    const active = points.filter((p) => p.active)
+    if (active.length === 0) {
+      toast.error('Tidak ada titik aktif untuk dicetak')
+      return
+    }
+    setPrintAllOpen(true)
+    setPrintAllLoading(true)
+    setPrintAllData([])
+    try {
+      const rows = await Promise.all(
+        active.map(async (point) => ({
+          point,
+          dataUrl: await QRCode.toDataURL(point.qr_code, {
+            width: 480,
+            margin: 2,
+            errorCorrectionLevel: 'M',
+            color: { dark: '#1e293b', light: '#ffffff' },
+          }),
+        })),
+      )
+      setPrintAllData(rows)
+    } catch {
+      toast.error('Gagal membuat QR')
+    } finally {
+      setPrintAllLoading(false)
     }
   }
 
@@ -159,7 +191,18 @@ export default function CheckpointsPage() {
           <h1 className="text-xl font-bold text-slate-900">Titik Patroli</h1>
           <p className="text-sm text-slate-500">Kelola QR code di tiap titik</p>
         </div>
-        <Dialog
+<div className="flex items-center gap-2">
+          {points.some((p) => p.active) && (
+            <Button
+              variant="outline"
+              onClick={showAllQr}
+              className="h-11 rounded-full"
+              title="Cetak semua poster QR titik aktif (4 per halaman A4)"
+            >
+              <Printer className="size-4" /> Cetak Semua
+            </Button>
+          )}
+          <Dialog
           open={open}
           onOpenChange={(o) => {
             setOpen(o)
@@ -247,6 +290,7 @@ export default function CheckpointsPage() {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
       </div>
 
       {loading ? (
@@ -344,6 +388,47 @@ export default function CheckpointsPage() {
             className="h-11 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white"
           >
             <Printer className="size-4" /> Cetak Poster
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={printAllOpen} onOpenChange={setPrintAllOpen}>
+        <DialogContent className="print-area max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              Poster QR Semua Titik ({printAllData.length}) &middot; 4 per halaman A4
+            </DialogTitle>
+          </DialogHeader>
+          <div className="print-preview-wrap max-h-[65vh] overflow-auto rounded-2xl bg-slate-100 p-4">
+            {printAllLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full rounded-2xl" />
+                <Skeleton className="h-16 w-full rounded-2xl" />
+              </div>
+            ) : (
+              Array.from({ length: Math.ceil(printAllData.length / 4) }).map((_, gi) => (
+                <div key={gi} className="poster-grid">
+                  {printAllData.slice(gi * 4, gi * 4 + 4).map(({ point, dataUrl }) => (
+                    <div key={point.id} className="poster-cell">
+                      <CheckpointPoster
+                        name={point.name}
+                        qrCode={point.qr_code}
+                        site={point.sites?.name ?? ''}
+                        description={point.description}
+                        qrDataUrl={dataUrl}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+          <Button
+            onClick={() => window.print()}
+            disabled={printAllLoading || printAllData.length === 0}
+            className="h-11 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white"
+          >
+            <Printer className="size-4" /> Cetak Semua ({printAllData.length})
           </Button>
         </DialogContent>
       </Dialog>
