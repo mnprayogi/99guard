@@ -20,6 +20,7 @@ export async function getGuardTodayRounds(guardId: string, date: string) {
     .select('round_id, rounds(*, round_checkpoints(*, checkpoints(*)))')
     .eq('guard_id', guardId)
     .eq('date', date)
+    .is('cancelled_at', null)
     .eq('rounds.active', true)
   if (error) throw error
   return (data ?? []).map((a) => a.rounds).filter(Boolean) as RoundWithDetails[]
@@ -151,6 +152,7 @@ export async function getTodayCompliance() {
       'id, guard_id, rounds(id, name, start_time, end_time, tolerance_minutes, round_checkpoints(checkpoints(id, name))), profiles(full_name)',
     )
     .eq('date', today)
+    .is('cancelled_at', null)
   if (aErr) throw aErr
 
   const { data: logs, error: lErr } = await supabase

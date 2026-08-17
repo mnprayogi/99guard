@@ -52,6 +52,7 @@ export type RoundAssignment = {
   round_id: string
   guard_id: string
   date: string
+  cancelled_at: string | null
 }
 
 export type PatrolLog = {

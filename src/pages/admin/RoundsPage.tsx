@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { getAssignableGuards, getRounds, getSites, getCheckpoints } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
-import { CalendarDays, Pencil, Plus, Route, Trash2, Users } from 'lucide-react'
+import { CalendarDays, CalendarRange, Pencil, Plus, Route, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -34,7 +34,13 @@ interface RoundRow {
   site_id: string
   sites: { name: string } | null
   round_checkpoints: { id: string; checkpoint_id: string }[]
-  round_assignments: { id: string; guard_id: string; date: string; profiles: { full_name: string } | null }[]
+  round_assignments: {
+    id: string
+    guard_id: string
+    date: string
+    cancelled_at: string | null
+    profiles: { full_name: string } | null
+  }[]
 }
 
 export default function RoundsPage() {
@@ -52,6 +58,9 @@ export default function RoundsPage() {
   const [removingAssign, setRemovingAssign] = useState<{ id: string; label: string } | null>(null)
   const [assignDates, setAssignDates] = useState<Record<string, string>>({})
   const [assignSel, setAssignSel] = useState<Record<string, string>>({})
+  const [bulkRound, setBulkRound] = useState<RoundRow | null>(null)
+  const [bulk, setBulk] = useState({ guardId: '', from: '', to: '' })
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   const [form, setForm] = useState({
     id: '',
@@ -203,7 +212,9 @@ export default function RoundsPage() {
 
   function assignedIds(round: RoundRow): Set<string> {
     const date = dateFor(round)
-    return new Set(round.round_assignments.filter((a) => a.date === date).map((a) => a.guard_id))
+    return new Set(
+      round.round_assignments.filter((a) => a.date === date && !a.cancelled_at).map((a) => a.guard_id),
+    )
   }
 
   async function assignGuard(roundId: string, guardId: string, date: string) {
@@ -224,11 +235,81 @@ export default function RoundsPage() {
 
   async function removeAssignment() {
     if (!removingAssign) return
-    const { error } = await supabase.from('round_assignments').delete().eq('id', removingAssign.id)
-    if (error) return toast.error('Gagal menghapus assignment')
-    toast.success('Penugasan dihapus')
+    const { error } = await supabase
+      .from('round_assignments')
+      .update({ cancelled_at: new Date().toISOString() })
+      .eq('id', removingAssign.id)
+    if (error) return toast.error('Gagal membatalkan assignment')
+    toast.success('Penugasan dibatalkan')
     setRemovingAssign(null)
     load()
+  }
+
+  function openBulk(round: RoundRow) {
+    const today = new Date().toISOString().slice(0, 10)
+    const to = new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10)
+    setBulk({ guardId: '', from: today, to })
+    setBulkRound(round)
+  }
+
+  function bulkDays(): string[] {
+    if (!bulkRound || !bulk.from || !bulk.to) return []
+    const days: string[] = []
+    for (
+      let d = new Date(`${bulk.from}T00:00:00`);
+      d <= new Date(`${bulk.to}T00:00:00`);
+      d.setDate(d.getDate() + 1)
+    ) {
+      days.push(d.toISOString().slice(0, 10))
+    }
+    return days.slice(0, 31)
+  }
+
+  function bulkToInsert(): string[] {
+    if (!bulkRound || !bulk.guardId) return []
+    const existing = new Set(
+      bulkRound.round_assignments
+        .filter((a) => a.guard_id === bulk.guardId && !a.cancelled_at)
+        .map((a) => a.date),
+    )
+    return bulkDays().filter((d) => !existing.has(d))
+  }
+
+  async function bulkAssign() {
+    if (!bulkRound) return
+    if (!bulk.guardId || !bulk.from || !bulk.to) {
+      toast.error('Lengkapi satpam & rentang tanggal')
+      return
+    }
+    if (bulk.to < bulk.from) {
+      toast.error('Tanggal "sampai" harus setelah "dari"')
+      return
+    }
+    const days = bulkDays()
+    if (days.length > 31) {
+      toast.error('Maksimal 31 hari')
+      return
+    }
+    const toInsert = bulkToInsert()
+    if (toInsert.length === 0) {
+      toast.error('Semua tanggal di rentang sudah di-assign')
+      return
+    }
+    setBulkSaving(true)
+    try {
+      const { error } = await supabase.from('round_assignments').insert(
+        toInsert.map((date) => ({ round_id: bulkRound.id, guard_id: bulk.guardId, date })),
+      )
+      if (error) throw error
+      const name = guards.find((g) => g.id === bulk.guardId)?.full_name ?? 'Satpam'
+      toast.success(`${toInsert.length} hari di-assign untuk ${name}`)
+      setBulkRound(null)
+      load()
+    } catch {
+      toast.error('Gagal bulk assign')
+    } finally {
+      setBulkSaving(false)
+    }
   }
 
   async function removeRound() {
@@ -484,7 +565,17 @@ export default function RoundsPage() {
                   })}
                 </SelectContent>
               </Select>
-              {[...round.round_assignments]
+              <Button
+                onClick={() => openBulk(round)}
+                disabled={!round.active}
+                variant="outline"
+                className="h-9 rounded-full px-3 text-xs"
+                title="Assign rentang tanggal"
+              >
+                <CalendarRange className="size-3.5" /> Bulk
+              </Button>
+              {round.round_assignments
+                .filter((a) => a.date === dateFor(round) && !a.cancelled_at)
                 .sort((a, b) => a.date.localeCompare(b.date))
                 .map((a) => (
                   <span
@@ -514,19 +605,81 @@ export default function RoundsPage() {
       <AlertDialog open={!!removingAssign} onOpenChange={(o) => !o && setRemovingAssign(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus penugasan?</AlertDialogTitle>
+            <AlertDialogTitle>Batalkan penugasan?</AlertDialogTitle>
             <AlertDialogDescription>
-              Penugasan "{removingAssign?.label}" akan dihapus permanen.
+              Penugasan "{removingAssign?.label}" akan dibatalkan. Riwayat tetap tercatat di laporan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={removeAssignment} className="bg-red-600 text-white hover:bg-red-700">
-              Hapus
+              Batalkan
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!bulkRound} onOpenChange={(o) => !o && setBulkRound(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Rentang Tanggal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Ronde</Label>
+              <p className="text-sm font-semibold text-slate-800">{bulkRound?.name}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Satpam</Label>
+              <Select value={bulk.guardId} onValueChange={(v) => setBulk({ ...bulk, guardId: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih satpam" />
+                </SelectTrigger>
+                <SelectContent>
+                  {guards.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.full_name}
+                      {!isAdmin && g.sites?.name ? ` (${g.sites.name})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Dari</Label>
+                <Input
+                  type="date"
+                  value={bulk.from}
+                  onChange={(e) => setBulk({ ...bulk, from: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Sampai</Label>
+                <Input
+                  type="date"
+                  value={bulk.to}
+                  onChange={(e) => setBulk({ ...bulk, to: e.target.value })}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-slate-400">
+              {bulkToInsert().length} hari akan di-assign
+              {bulkDays().length > bulkToInsert().length
+                ? ` (${bulkDays().length - bulkToInsert().length} tanggal dilewati karena sudah ada)`
+                : ''}
+              . Maksimal 31 hari.
+            </p>
+            <Button
+              onClick={bulkAssign}
+              disabled={bulkSaving || bulkToInsert().length === 0}
+              className="h-11 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white"
+            >
+              {bulkSaving ? 'Menyimpan...' : `Assign ${bulkToInsert().length} hari`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>

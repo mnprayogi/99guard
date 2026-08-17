@@ -310,11 +310,11 @@ export default function ReportsPage() {
       per.set(key, cur)
     }
     for (const log of logs) {
-      const d = new Date(`${log.scanned_at.slice(0, 10)}T00:00:00`)
+      const d = new Date(log.scanned_at)
       const key = keyOf(weekly ? weekStartOf(d) : d)
       scans.set(key, (scans.get(key) ?? 0) + 1)
     }
-    const out: { key: string; label: string; sla: number; scans: number }[] = []
+    const out: { key: string; label: string; sla: number | null; scans: number }[] = []
     const start = new Date(`${fromDate}T00:00:00`)
     const end = new Date(`${toDate}T00:00:00`)
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -324,7 +324,7 @@ export default function ReportsPage() {
       out.push({
         key,
         label: `${key.slice(8, 10)}/${key.slice(5, 7)}`,
-        sla: v && v.required > 0 ? Math.round((v.done / v.required) * 100) : 0,
+        sla: v && v.required > 0 ? Math.round((v.done / v.required) * 100) : null,
         scans: scans.get(key) ?? 0,
       })
     }
@@ -634,9 +634,12 @@ export default function ReportsPage() {
                 />
                 <Tooltip
                   contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
-                  formatter={(value, name) =>
-                    String(name) === 'Kepatuhan SLA' ? [`${value}%`, name] : [value, name]
-                  }
+                  formatter={(value, name) => {
+                    if (String(name) !== 'Kepatuhan SLA') return [value, name]
+                    return value === null || value === undefined
+                      ? ['Tidak ada ronde di-assign', name]
+                      : [`${value}%`, name]
+                  }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar
