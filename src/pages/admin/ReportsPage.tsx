@@ -35,7 +35,7 @@ interface LogRow {
   checkpoint_id: string
   round_id: string | null
   guard_id: string
-  profiles: { full_name: string } | null
+  profiles: { id: string; full_name: string } | null
   checkpoints: { name: string } | null
   rounds: { name: string; start_time: string; end_time: string; tolerance_minutes: number } | null
 }
@@ -51,6 +51,7 @@ interface IncidentRow {
 interface AssignRow {
   id: string
   date: string
+  guard_id: string
   profiles: { full_name: string } | null
   rounds: {
     id: string
@@ -141,26 +142,28 @@ export default function ReportsPage() {
     async function load() {
       setLoading(true)
       try {
+        const startIso = new Date(`${fromDate}T00:00:00`).toISOString()
+        const endIso = new Date(`${toDate}T23:59:59.999`).toISOString()
         const [l, i, a] = await Promise.all([
           supabase
             .from('patrol_logs')
             .select(
-              '*, profiles(full_name), checkpoints(name), rounds(name, start_time, end_time, tolerance_minutes)',
+              '*, profiles(id, full_name), checkpoints(name), rounds(name, start_time, end_time, tolerance_minutes)',
             )
-            .gte('scanned_at', `${fromDate}T00:00:00.000Z`)
-            .lte('scanned_at', `${toDate}T23:59:59.999Z`)
+            .gte('scanned_at', startIso)
+            .lte('scanned_at', endIso)
             .order('scanned_at'),
           supabase
             .from('incidents')
             .select('id, category, status, reported_at, updated_at')
-            .gte('reported_at', `${fromDate}T00:00:00.000Z`)
-            .lte('reported_at', `${toDate}T23:59:59.999Z`)
+            .gte('reported_at', startIso)
+            .lte('reported_at', endIso)
             .order('reported_at', { ascending: false })
             .limit(500),
           supabase
             .from('round_assignments')
             .select(
-              'id, date, profiles(full_name), rounds(id, name, start_time, end_time, tolerance_minutes, round_checkpoints(checkpoints(id, name)))',
+              'id, date, guard_id, profiles(full_name), rounds(id, name, start_time, end_time, tolerance_minutes, round_checkpoints(checkpoints(id, name)))',
             )
             .gte('date', fromDate)
             .lte('date', toDate),
@@ -203,29 +206,34 @@ export default function ReportsPage() {
       const points = r?.round_checkpoints.map((rc) => rc.checkpoints) ?? []
       const [sh, sm] = (r?.start_time ?? '00:00').split(':').map(Number)
       const [eh, em] = (r?.end_time ?? '00:00').split(':').map(Number)
-      const start = new Date(`${a.date}T${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}:00`).getTime()
+      const start = new Date(`${a.date}T${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}:00`).getTime() - (r?.tolerance_minutes ?? 0) * 60000
       const end = new Date(`${a.date}T${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`).getTime()
       const pointIds = new Set(points.map((p) => p.id))
-      const roundLogs = logs.filter(
-        (l) =>
-          l.round_id === r?.id ||
-          (pointIds.has(l.checkpoint_id) &&
-            new Date(l.scanned_at).getTime() >= start &&
-            new Date(l.scanned_at).getTime() <= end),
-      )
+      const roundLogs = logs.filter((l) => {
+        const t = new Date(l.scanned_at).getTime()
+        return (
+          l.guard_id === a.guard_id &&
+          t >= start &&
+          t <= end &&
+          (l.round_id === r?.id || pointIds.has(l.checkpoint_id))
+        )
+      })
       const scannedIds = new Set(roundLogs.map((l) => l.checkpoint_id))
       const done = points.filter((p) => scannedIds.has(p.id))
       const missed = points.filter((p) => !scannedIds.has(p.id))
       const ended = now > end
+      const started = now >= start
       return {
         id: a.id,
         date: a.date,
+        guardId: a.guard_id,
         guardName: a.profiles?.full_name ?? 'Satpam',
         roundName: r?.name ?? 'Ronde',
         points,
         doneCount: done.length,
         missed: ended ? missed : [],
         ended,
+        started,
       }
     })
   }, [assignments, logs])
@@ -233,9 +241,10 @@ export default function ReportsPage() {
   const perGuardDetail = useMemo(() => {
     const map = new Map<string, GuardDetail>()
     for (const log of logs) {
-      const key = log.profiles?.full_name ?? 'Satpam'
+      const key = log.guard_id
+      const name = log.profiles?.full_name ?? 'Satpam'
       const cur = map.get(key) ?? {
-        name: key,
+        name,
         rounds: [],
         required: 0,
         visited: 0,
@@ -252,7 +261,9 @@ export default function ReportsPage() {
       map.set(key, cur)
     }
     for (const r of perRound) {
-      const cur = map.get(r.guardName) ?? {
+      if (!r.started) continue
+      const key = r.guardId
+      const cur = map.get(key) ?? {
         name: r.guardName,
         rounds: [],
         required: 0,
@@ -267,7 +278,7 @@ export default function ReportsPage() {
       cur.required += r.points.length
       cur.visited += r.doneCount
       if (r.ended) cur.missed += r.missed.length
-      map.set(r.guardName, cur)
+      map.set(key, cur)
     }
     return [...map.values()].sort((a, b) => b.total - a.total)
   }, [logs, perRound])
