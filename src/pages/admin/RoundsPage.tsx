@@ -42,12 +42,16 @@ export default function RoundsPage() {
   const [rounds, setRounds] = useState<RoundRow[]>([])
   const [sites, setSites] = useState<{ id: string; name: string }[]>([])
   const [checkpoints, setCheckpoints] = useState<{ id: string; name: string; site_id: string }[]>([])
-  const [guards, setGuards] = useState<{ id: string; full_name: string }[]>([])
+  const [guards, setGuards] = useState<
+    { id: string; full_name: string; site_id: string | null; sites: { name: string } | null }[]
+  >([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<RoundRow | null>(null)
+  const [removingAssign, setRemovingAssign] = useState<{ id: string; label: string } | null>(null)
   const [assignDates, setAssignDates] = useState<Record<string, string>>({})
+  const [assignSel, setAssignSel] = useState<Record<string, string>>({})
 
   const [form, setForm] = useState({
     id: '',
@@ -59,17 +63,20 @@ export default function RoundsPage() {
     selected: [] as string[],
   })
 
+  const isAdmin = profile?.role === 'admin'
+  const siteId = isAdmin ? profile?.site_id ?? undefined : undefined
+
   async function load() {
     setLoading(true)
     try {
       const [r, s, c, g] = await Promise.all([
-        getRounds(),
+        getRounds(siteId),
         getSites(),
-        getCheckpoints(),
-        getAssignableGuards(profile?.role === 'admin' ? profile.site_id : null),
+        getCheckpoints(siteId),
+        getAssignableGuards(siteId ?? null),
       ])
       setRounds(r as RoundRow[])
-      setSites(s)
+      setSites(siteId ? s.filter((x) => x.id === siteId) : s)
       setCheckpoints(c)
       setGuards(g)
     } catch (e) {
@@ -190,6 +197,15 @@ export default function RoundsPage() {
     load()
   }
 
+  function dateFor(round: RoundRow) {
+    return assignDates[round.id] ?? new Date().toISOString().slice(0, 10)
+  }
+
+  function assignedIds(round: RoundRow): Set<string> {
+    const date = dateFor(round)
+    return new Set(round.round_assignments.filter((a) => a.date === date).map((a) => a.guard_id))
+  }
+
   async function assignGuard(roundId: string, guardId: string, date: string) {
     const { error } = await supabase.from('round_assignments').insert({
       round_id: roundId,
@@ -197,17 +213,21 @@ export default function RoundsPage() {
       date,
     })
     if (error) {
-      if (error.code === '23505') toast.error('Satpam sudah di-assign di ronde ini')
+      if (error.code === '23505') toast.error('Satpam sudah di-assign ronde ini pada tanggal tersebut')
       else toast.error('Gagal assign')
       return
     }
     toast.success(`Satpam di-assign untuk ${dateLabel(date)}`)
+    setAssignSel((prev) => ({ ...prev, [roundId]: '' }))
     load()
   }
 
-  async function removeAssignment(id: string) {
-    const { error } = await supabase.from('round_assignments').delete().eq('id', id)
+  async function removeAssignment() {
+    if (!removingAssign) return
+    const { error } = await supabase.from('round_assignments').delete().eq('id', removingAssign.id)
     if (error) return toast.error('Gagal menghapus assignment')
+    toast.success('Penugasan dihapus')
+    setRemovingAssign(null)
     load()
   }
 
@@ -274,7 +294,11 @@ export default function RoundsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Site</Label>
-                <Select value={form.site_id} onValueChange={(v) => setForm({ ...form, site_id: v })}>
+                <Select
+                  value={form.site_id}
+                  onValueChange={(v) => setForm({ ...form, site_id: v })}
+                  disabled={isAdmin}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih site" />
                   </SelectTrigger>
@@ -432,24 +456,32 @@ export default function RoundsPage() {
               <Users className="size-4 text-slate-400" />
               <Input
                 type="date"
-                value={assignDates[round.id] ?? new Date().toISOString().slice(0, 10)}
+                value={dateFor(round)}
+                disabled={!round.active}
                 onChange={(e) => setAssignDates({ ...assignDates, [round.id]: e.target.value })}
-                className="h-9 w-40 rounded-full text-xs"
+                className="h-9 w-40 rounded-full text-xs disabled:bg-slate-50 disabled:text-slate-400"
               />
               <Select
-                onValueChange={(gid) =>
-                  assignGuard(round.id, gid, assignDates[round.id] ?? new Date().toISOString().slice(0, 10))
-                }
+                value={assignSel[round.id] ?? ''}
+                disabled={!round.active}
+                onValueChange={(gid) => assignGuard(round.id, gid, dateFor(round))}
               >
                 <SelectTrigger className="h-9 w-44 rounded-full text-xs">
-                  <SelectValue placeholder="Assign satpam" />
+                  <SelectValue
+                    placeholder={round.active ? 'Assign satpam' : 'Aktifkan ronde untuk assign'}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {guards.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.full_name}
-                    </SelectItem>
-                  ))}
+                  {guards.map((g) => {
+                    const taken = assignedIds(round).has(g.id)
+                    return (
+                      <SelectItem key={g.id} value={g.id} disabled={taken}>
+                        {g.full_name}
+                        {!isAdmin && g.sites?.name ? ` (${g.sites.name})` : ''}
+                        {taken ? ' · Sudah di-assign' : ''}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
               {[...round.round_assignments]
@@ -462,7 +494,12 @@ export default function RoundsPage() {
                     <CalendarDays className="size-3" />
                     {dateLabel(a.date)} &middot; {a.profiles?.full_name ?? 'Satpam'}
                     <button
-                      onClick={() => removeAssignment(a.id)}
+                      onClick={() =>
+                        setRemovingAssign({
+                          id: a.id,
+                          label: `${dateLabel(a.date)} · ${a.profiles?.full_name ?? 'Satpam'}`,
+                        })
+                      }
                       className="text-brand-blue/60 hover:text-red-500"
                     >
                       ×
@@ -473,6 +510,23 @@ export default function RoundsPage() {
           </div>
         ))
       )}
+
+      <AlertDialog open={!!removingAssign} onOpenChange={(o) => !o && setRemovingAssign(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus penugasan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Penugasan "{removingAssign?.label}" akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={removeAssignment} className="bg-red-600 text-white hover:bg-red-700">
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
