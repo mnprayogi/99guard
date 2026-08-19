@@ -101,12 +101,12 @@ export async function getRounds(siteId?: string) {
   return data
 }
 
-export async function getIncidents(siteId?: string) {
+export async function getIncidents(siteId?: string, from = 0, to = 9) {
   let query = supabase
     .from('incidents')
     .select('*, profiles(full_name), sites(name), incident_photos(*)')
     .order('reported_at', { ascending: false })
-    .limit(100)
+    .range(from, to)
   if (siteId) query = query.eq('site_id', siteId)
   const { data, error } = await query
   if (error) throw error

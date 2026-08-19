@@ -61,9 +61,13 @@ function storagePathFromUrl(url: string): string | null {
   return idx < 0 ? null : url.slice(idx + marker.length)
 }
 
+const PAGE_SIZE = 10
+
 export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<IncidentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [detail, setDetail] = useState<IncidentRow | null>(null)
   const [actions, setActions] = useState<ActionRow[]>([])
   const [note, setNote] = useState('')
@@ -75,11 +79,26 @@ export default function IncidentsPage() {
   async function load() {
     setLoading(true)
     try {
-      setIncidents((await getIncidents()) as IncidentRow[])
+      const data = (await getIncidents()) as IncidentRow[]
+      setIncidents(data)
+      setHasMore(data.length === PAGE_SIZE)
     } catch {
       toast.error('Gagal memuat insiden')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadMore() {
+    setLoadingMore(true)
+    try {
+      const data = (await getIncidents(undefined, incidents.length, incidents.length + PAGE_SIZE - 1)) as IncidentRow[]
+      setIncidents((prev) => [...prev, ...data])
+      setHasMore(data.length === PAGE_SIZE)
+    } catch {
+      toast.error('Gagal memuat insiden')
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -368,6 +387,17 @@ export default function IncidentsPage() {
             </Dialog>
           ))}
         </div>
+      )}
+
+      {!loading && incidents.length > 0 && hasMore && (
+        <Button
+          onClick={loadMore}
+          disabled={loadingMore}
+          variant="outline"
+          className="mx-auto flex h-10 w-full rounded-full text-xs font-semibold sm:w-auto sm:px-8"
+        >
+          {loadingMore ? 'Memuat...' : 'Muat lebih banyak'}
+        </Button>
       )}
 
       <AlertDialog open={!!deletingPhoto} onOpenChange={(o) => !o && setDeletingPhoto(null)}>

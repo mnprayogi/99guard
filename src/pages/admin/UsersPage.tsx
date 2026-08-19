@@ -3,12 +3,14 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { logClient } from '@/lib/debugLog'
 import { getSites } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
-import { KeyRound, Plus, ShieldCheck, UserCog } from 'lucide-react'
+import { KeyRound, Pencil, Plus, ShieldCheck, UserCog } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Role } from '@/lib/types'
@@ -29,6 +31,7 @@ const roleLabel: Record<Role, string> = {
 }
 
 export default function UsersPage() {
+  const { profile } = useAuth()
   const [users, setUsers] = useState<UserRow[]>([])
   const [sites, setSites] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,6 +46,15 @@ export default function UsersPage() {
     site_id: '',
   })
   const [creating, setCreating] = useState(false)
+
+  const [editUser, setEditUser] = useState<UserRow | null>(null)
+  const [editForm, setEditForm] = useState({
+    full_name: '',
+    role: 'satpam' as Role,
+    site_id: '',
+    active: true,
+  })
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [newPassword, setNewPassword] = useState('')
@@ -150,6 +162,45 @@ export default function UsersPage() {
     toast.success('Password diperbarui')
     setResetUser(null)
     setNewPassword('')
+  }
+
+  function openEdit(user: UserRow) {
+    setEditUser(user)
+    setEditForm({
+      full_name: user.full_name,
+      role: user.role,
+      site_id: user.site_id ?? '',
+      active: user.active,
+    })
+  }
+
+  async function saveEdit() {
+    if (!editUser) return
+    if (!editForm.full_name.trim()) {
+      toast.error('Nama wajib diisi')
+      return
+    }
+    setSavingEdit(true)
+    logClient('users', 'edit_user', 'mulai', { user: editUser.full_name })
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: editForm.full_name.trim(),
+        role: editForm.role,
+        site_id: editForm.site_id || null,
+        active: editForm.active,
+      })
+      .eq('id', editUser.id)
+    setSavingEdit(false)
+    if (error) {
+      logClient('users', 'edit_user', 'gagal', { user: editUser.full_name, message: error.message })
+      toast.error(error.message ?? 'Gagal menyimpan pengguna')
+      return
+    }
+    logClient('users', 'edit_user', 'berhasil', { user: editUser.full_name })
+    toast.success('Pengguna diperbarui')
+    setEditUser(null)
+    load()
   }
 
   return (
@@ -273,6 +324,13 @@ export default function UsersPage() {
                 >
                   {u.active ? 'Aktif' : 'Nonaktif'}
                 </span>
+                <button
+                  onClick={() => openEdit(u)}
+                  className="rounded-full p-1.5 text-slate-400 hover:bg-brand-blue-light hover:text-brand-blue"
+                  title="Edit pengguna"
+                >
+                  <Pencil className="size-4" />
+                </button>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                 <Select value={u.role} onValueChange={(v) => updateRole(u, v as Role)}>
@@ -348,6 +406,89 @@ export default function UsersPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Pengguna</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Nama Lengkap</Label>
+              <Input
+                value={editForm.full_name}
+                onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                placeholder="Nama pengguna"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Role</Label>
+                <Select
+                  value={editForm.role}
+                  onValueChange={(v) => setEditForm({ ...editForm, role: v as Role })}
+                  disabled={editUser?.id === profile?.id}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(roleLabel).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Site</Label>
+                <Select
+                  value={editForm.site_id}
+                  onValueChange={(v) => setEditForm({ ...editForm, site_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tanpa site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Tanpa site</SelectItem>
+                    {sites.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <label
+              className={cn(
+                'flex items-center gap-2.5 text-sm font-medium text-slate-700',
+                editUser?.id === profile?.id && 'cursor-not-allowed opacity-50',
+              )}
+            >
+              <Checkbox
+                checked={editForm.active}
+                onCheckedChange={(c) => setEditForm({ ...editForm, active: !!c })}
+                disabled={editUser?.id === profile?.id}
+              />
+              Akun aktif
+            </label>
+            {editUser?.id === profile?.id && (
+              <p className="text-xs text-amber-600">
+                Role dan status akun sendiri tidak dapat diubah (cegah lockout).
+              </p>
+            )}
+            <Button
+              onClick={saveEdit}
+              disabled={savingEdit}
+              className="h-11 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white"
+            >
+              {savingEdit ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

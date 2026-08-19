@@ -166,7 +166,8 @@ export default function ReportsPage() {
               'id, date, guard_id, profiles(full_name), rounds(id, name, start_time, end_time, tolerance_minutes, round_checkpoints(checkpoints(id, name)))',
             )
             .gte('date', fromDate)
-            .lte('date', toDate),
+            .lte('date', toDate)
+            .is('cancelled_at', null),
         ])
         if (l.error) throw l.error
         if (i.error) throw i.error
@@ -542,9 +543,9 @@ export default function ReportsPage() {
                     setFromDate(v)
                   }
                 }}
-                className="h-10 w-full rounded-full text-sm"
+                className="h-10 w-full min-w-0 rounded-full text-sm"
               />
-              <span className="text-xs text-slate-400">s/d</span>
+              <span className="shrink-0 text-xs text-slate-400">s/d</span>
               <Input
                 type="date"
                 value={toDate}
@@ -559,7 +560,7 @@ export default function ReportsPage() {
                     setToDate(v)
                   }
                 }}
-                className="h-10 w-full rounded-full text-sm"
+                className="h-10 w-full min-w-0 rounded-full text-sm"
               />
             </div>
             <Button
@@ -602,8 +603,8 @@ export default function ReportsPage() {
         {slaTrend.every((p) => p.scans === 0) ? (
           <p className="py-6 text-center text-sm text-slate-400">Belum ada data scan pada periode ini</p>
         ) : (
-          <div className={cn('h-52 w-full overflow-x-auto sm:h-64', scrollbarCls)}>
-            <div className="h-full min-w-[440px] sm:min-w-0">
+          <div className="h-56 w-full sm:h-64">
+            <div className="h-full w-full">
               <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={slaTrend} margin={{ top: 5, right: 5, bottom: 0, left: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -648,7 +649,7 @@ export default function ReportsPage() {
                   name="Jumlah scan"
                   fill="#bfdbfe"
                   radius={[6, 6, 0, 0]}
-                  barSize={18}
+                  maxBarSize={18}
                 />
                 <Line
                   yAxisId="sla"
