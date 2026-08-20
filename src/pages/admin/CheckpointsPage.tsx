@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import QRCode from 'qrcode'
 import { supabase } from '@/lib/supabase'
 import { getCheckpoints, getSites } from '@/lib/api'
-import CheckpointPoster from '@/components/admin/CheckpointPoster'
+import { writePosterPrintWindow } from '@/lib/printPosters'
 import { MapPin, Pencil, Plus, Printer, QrCode, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -51,11 +51,7 @@ export default function CheckpointsPage() {
     lng: '',
   })
   const [deleting, setDeleting] = useState<CheckpointRow | null>(null)
-  const [qrPoint, setQrPoint] = useState<CheckpointRow | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState('')
-  const [printAllOpen, setPrintAllOpen] = useState(false)
-  const [printAllLoading, setPrintAllLoading] = useState(false)
-  const [printAllData, setPrintAllData] = useState<{ point: CheckpointRow; dataUrl: string }[]>([])
+  const [printing, setPrinting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -80,31 +76,46 @@ export default function CheckpointsPage() {
     }
   }, [open, sites, form.site_id])
 
-  async function showQr(point: CheckpointRow) {
-    setQrPoint(point)
-    setQrDataUrl('')
+  async function printOne(point: CheckpointRow) {
+    const win = window.open('', '_blank')
+    if (!win) {
+      toast.error('Izinkan popup untuk mencetak poster QR')
+      return
+    }
     try {
-      const url = await QRCode.toDataURL(point.qr_code, {
+      const dataUrl = await QRCode.toDataURL(point.qr_code, {
         width: 480,
         margin: 2,
         errorCorrectionLevel: 'M',
         color: { dark: '#1e293b', light: '#ffffff' },
       })
-      setQrDataUrl(url)
+      writePosterPrintWindow(win, [
+        {
+          name: point.name,
+          qrCode: point.qr_code,
+          site: point.sites?.name ?? '',
+          description: point.description,
+          qrDataUrl: dataUrl,
+        },
+      ])
     } catch {
       toast.error('Gagal membuat QR')
+      win.close()
     }
   }
 
-  async function showAllQr() {
+  async function printAll() {
     const active = points.filter((p) => p.active)
     if (active.length === 0) {
       toast.error('Tidak ada titik aktif untuk dicetak')
       return
     }
-    setPrintAllOpen(true)
-    setPrintAllLoading(true)
-    setPrintAllData([])
+    const win = window.open('', '_blank')
+    if (!win) {
+      toast.error('Izinkan popup untuk mencetak poster QR')
+      return
+    }
+    setPrinting(true)
     try {
       const rows = await Promise.all(
         active.map(async (point) => ({
@@ -117,11 +128,21 @@ export default function CheckpointsPage() {
           }),
         })),
       )
-      setPrintAllData(rows)
+      writePosterPrintWindow(
+        win,
+        rows.map(({ point, dataUrl }) => ({
+          name: point.name,
+          qrCode: point.qr_code,
+          site: point.sites?.name ?? '',
+          description: point.description,
+          qrDataUrl: dataUrl,
+        })),
+      )
     } catch {
       toast.error('Gagal membuat QR')
+      win.close()
     } finally {
-      setPrintAllLoading(false)
+      setPrinting(false)
     }
   }
 
@@ -195,11 +216,12 @@ export default function CheckpointsPage() {
           {points.some((p) => p.active) && (
             <Button
               variant="outline"
-              onClick={showAllQr}
+              onClick={printAll}
+              disabled={printing}
               className="h-11 rounded-full"
               title="Cetak semua poster QR titik aktif (4 per halaman A4)"
             >
-              <Printer className="size-4" /> Cetak Semua
+              <Printer className="size-4" /> {printing ? 'Menyiapkan...' : 'Cetak Semua'}
             </Button>
           )}
           <Dialog
@@ -321,9 +343,9 @@ export default function CheckpointsPage() {
                 <div className="flex flex-col items-end gap-1.5">
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => showQr(p)}
+                      onClick={() => printOne(p)}
                       className="rounded-full p-1.5 text-slate-400 hover:bg-brand-blue-light hover:text-brand-blue"
-                      title="Tampilkan QR"
+                      title="Cetak poster QR"
                     >
                       <Printer className="size-4" />
                     </button>
@@ -357,81 +379,6 @@ export default function CheckpointsPage() {
           ))}
         </div>
       )}
-
-      <Dialog
-        open={!!qrPoint}
-        onOpenChange={(o) => {
-          if (!o) {
-            setQrPoint(null)
-            setQrDataUrl('')
-          }
-        }}
-      >
-        <DialogContent className="print-area max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Poster QR Titik Patroli</DialogTitle>
-          </DialogHeader>
-          <div className="print-preview-wrap max-h-[65vh] overflow-auto rounded-2xl bg-slate-100 p-4">
-            <div className="poster-preview">
-              <CheckpointPoster
-                name={qrPoint?.name ?? ''}
-                qrCode={qrPoint?.qr_code ?? ''}
-                site={qrPoint?.sites?.name ?? ''}
-                description={qrPoint?.description ?? null}
-                qrDataUrl={qrDataUrl}
-              />
-            </div>
-          </div>
-          <Button
-            onClick={() => window.print()}
-            disabled={!qrDataUrl}
-            className="h-11 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white"
-          >
-            <Printer className="size-4" /> Cetak Poster
-          </Button>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={printAllOpen} onOpenChange={setPrintAllOpen}>
-        <DialogContent className="print-area max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              Poster QR Semua Titik ({printAllData.length}) &middot; 4 per halaman A4
-            </DialogTitle>
-          </DialogHeader>
-          <div className="print-preview-wrap max-h-[65vh] overflow-auto rounded-2xl bg-slate-100 p-4">
-            {printAllLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-16 w-full rounded-2xl" />
-                <Skeleton className="h-16 w-full rounded-2xl" />
-              </div>
-            ) : (
-              Array.from({ length: Math.ceil(printAllData.length / 4) }).map((_, gi) => (
-                <div key={gi} className="poster-grid">
-                  {printAllData.slice(gi * 4, gi * 4 + 4).map(({ point, dataUrl }) => (
-                    <div key={point.id} className="poster-cell">
-                      <CheckpointPoster
-                        name={point.name}
-                        qrCode={point.qr_code}
-                        site={point.sites?.name ?? ''}
-                        description={point.description}
-                        qrDataUrl={dataUrl}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
-          <Button
-            onClick={() => window.print()}
-            disabled={printAllLoading || printAllData.length === 0}
-            className="h-11 w-full rounded-full bg-gradient-to-r from-brand-blue to-brand-blue-dark text-white"
-          >
-            <Printer className="size-4" /> Cetak Semua ({printAllData.length})
-          </Button>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
