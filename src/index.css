@@ -128,8 +128,8 @@
   }
   .poster-grid {
     display: grid;
-    grid-template-columns: repeat(2, 101mm);
-    grid-template-rows: repeat(2, 144.5mm);
+    grid-template-columns: repeat(2, 93mm);
+    grid-template-rows: repeat(2, 132mm);
     gap: 8mm;
     margin-bottom: 1rem;
   }
@@ -139,14 +139,20 @@
   .poster-cell .poster-sheet {
     width: 210mm;
     height: 297mm;
-    transform: scale(0.48);
-    transform-origin: top left;
+    zoom: 0.4429;
   }
 }
 @media print {
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 8mm;
+  }
+  html,
+  body {
+    width: auto;
+    height: auto;
+    overflow: visible;
+    background: #fff;
   }
   body > :not(.print-area) {
     display: none !important;
@@ -158,11 +164,8 @@
     print-color-adjust: exact;
   }
   .print-area {
-    position: absolute !important;
+    position: static !important;
     inset: auto;
-    top: 0;
-    left: 0;
-    width: 210mm;
     translate: none;
     transform: none;
     animation: none;
@@ -176,12 +179,14 @@
     overflow: visible;
     gap: 0;
     display: block;
-    background: white;
+    width: 194mm;
+    background: #fff;
   }
   .print-area .print-preview-wrap {
     max-height: none;
     overflow: visible;
     padding: 0;
+    margin: 0;
     background: transparent;
     border-radius: 0;
   }
@@ -189,26 +194,30 @@
     zoom: 1;
   }
   .print-area .poster-sheet {
-    width: 210mm;
+    width: 194mm;
   }
   .print-area .poster-grid {
     display: grid;
-    grid-template-columns: repeat(2, 101mm);
-    grid-template-rows: repeat(2, 144.5mm);
+    grid-template-columns: repeat(2, 93mm);
+    grid-template-rows: repeat(2, 132mm);
     gap: 8mm;
     margin: 0;
+    padding: 0;
     break-inside: avoid;
   }
   .print-area .poster-grid + .poster-grid {
     break-before: page;
   }
   .print-area .poster-cell {
+    width: 93mm;
+    height: 132mm;
     overflow: hidden;
   }
   .print-area .poster-cell .poster-sheet {
+    width: 210mm;
     height: 297mm;
-    transform: scale(0.48);
-    transform-origin: top left;
+    zoom: 0.4429;
+    transform: none;
   }
   .print-area [data-slot='dialog-header'],
   .print-area button {
