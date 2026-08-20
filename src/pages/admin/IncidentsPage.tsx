@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { getIncidents } from '@/lib/api'
+import { logClient } from '@/lib/debugLog'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, Archive, CheckCircle2, Clock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -165,9 +166,13 @@ export default function IncidentsPage() {
         .map((p) => (p.photo_url ? storagePathFromUrl(p.photo_url) : null))
         .filter((x): x is string => !!x)
       for (const p of paths) {
-        await supabase.functions.invoke('photos-admin?action=delete-photo', {
+        const { error } = await supabase.functions.invoke('photos-admin?action=delete-photo', {
           body: { storage_path: p },
         })
+        if (error) {
+          console.warn('[IncidentsPage] hapus file storage gagal (file yatim, akan dibersihkan nanti):', p, error)
+          logClient('incidents', 'remove_incident', 'storage remove gagal', { path: p, err: String(error) })
+        }
       }
       const { data, error } = await supabase
         .from('incidents')
@@ -195,6 +200,7 @@ export default function IncidentsPage() {
   async function removePhoto() {
     if (!deletingPhoto) return
     setWorking(true)
+    logClient('incidents', 'remove_photo', 'mulai', { photoId: deletingPhoto.id })
     try {
       const path = deletingPhoto.photo_url ? storagePathFromUrl(deletingPhoto.photo_url) : null
       const { error } = await supabase.functions.invoke('photos-admin?action=delete-photo', {
@@ -208,10 +214,12 @@ export default function IncidentsPage() {
         })
       }
       setDeletingPhoto(null)
+      logClient('incidents', 'remove_photo', 'berhasil', { photoId: deletingPhoto.id })
       toast.success('Foto dihapus')
       load()
     } catch (e) {
       console.error('[IncidentsPage] gagal menghapus foto:', e)
+      logClient('incidents', 'remove_photo', 'gagal', { photoId: deletingPhoto.id, err: String(e) })
       toast.error('Gagal menghapus foto')
     } finally {
       setWorking(false)

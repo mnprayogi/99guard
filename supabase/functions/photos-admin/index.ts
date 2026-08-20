@@ -252,13 +252,17 @@ Deno.serve(async (req: Request) => {
       if (!path && !photoId) {
         return Response.json({ error: "storage_path atau photo_id wajib" }, { status: 400, headers: cors })
       }
-      if (path) {
-        const { error: rmErr } = await supabaseAdmin.storage.from(BUCKET).remove([path])
-        if (rmErr) return Response.json({ error: String(rmErr) }, { status: 500, headers: cors })
-      }
       if (photoId) {
         const { error: delErr } = await supabaseAdmin.from("incident_photos").delete().eq("id", photoId)
-        if (delErr) return Response.json({ error: String(delErr) }, { status: 500, headers: cors })
+        if (delErr) {
+          return Response.json({ error: String(delErr) }, { status: 500, headers: cors })
+        }
+      }
+      if (path) {
+        const { error: rmErr } = await supabaseAdmin.storage.from(BUCKET).remove([path])
+        if (rmErr) {
+          console.warn(`[photos-admin] storage.remove dilewati (best-effort): ${path} -> ${rmErr.message}`)
+        }
       }
       return Response.json({ ok: true }, { headers: cors })
     }
