@@ -5,8 +5,9 @@ import { getLivePatrolLogs, getTodayCompliance, type AssignmentCompliance } from
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { AlertTriangle, CheckCircle2, Clock, MapPin, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, MapPin, ShieldCheck, ZoomIn } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 interface LiveLog {
   id: string
@@ -23,6 +24,7 @@ export default function Dashboard() {
   const [openIncidents, setOpenIncidents] = useState(0)
   const [compliance, setCompliance] = useState<AssignmentCompliance[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewPhoto, setViewPhoto] = useState<LiveLog | null>(null)
 
   useEffect(() => {
     let active = true
@@ -215,11 +217,26 @@ export default function Dashboard() {
               key={log.id}
               className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
             >
-              <img
-                src={log.photo_url ?? undefined}
-                alt=""
-                className="size-12 shrink-0 rounded-xl bg-slate-100 object-cover"
-              />
+              {log.photo_url ? (
+                <button
+                  onClick={() => setViewPhoto(log)}
+                  className="group relative shrink-0 overflow-hidden rounded-xl"
+                  title="Lihat foto"
+                >
+                  <img
+                    src={log.photo_url}
+                    alt="Foto scan"
+                    className="size-12 bg-slate-100 object-cover transition group-hover:scale-105"
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100">
+                    <ZoomIn className="size-4 text-white" />
+                  </span>
+                </button>
+              ) : (
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400">
+                  <MapPin className="size-4" />
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-900">
                   {log.profiles?.full_name ?? 'Satpam'}
@@ -250,6 +267,37 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!viewPhoto} onOpenChange={(o) => !o && setViewPhoto(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogTitle className="sr-only">Foto scan</DialogTitle>
+          {viewPhoto?.photo_url && (
+            <img
+              src={viewPhoto.photo_url}
+              alt="Foto scan"
+              className="max-h-[70vh] w-full rounded-xl bg-slate-100 object-contain"
+            />
+          )}
+          <div className="text-center">
+            <p className="text-sm font-bold text-slate-900">
+              {viewPhoto?.profiles?.full_name ?? 'Satpam'}
+            </p>
+            <p className="mt-0.5 flex items-center justify-center gap-1 text-xs text-slate-500">
+              <MapPin className="size-3" />
+              {viewPhoto?.checkpoints?.name ?? 'Titik patroli'}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {viewPhoto &&
+                new Date(viewPhoto.scanned_at).toLocaleString('id-ID', {
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
