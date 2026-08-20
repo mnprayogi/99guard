@@ -139,7 +139,8 @@
   .poster-cell .poster-sheet {
     width: 210mm;
     height: 297mm;
-    zoom: 0.4429;
+    transform: scale(0.4429);
+    transform-origin: top left;
   }
 }
 @media print {
@@ -153,6 +154,13 @@
     height: auto;
     overflow: visible;
     background: #fff;
+  }
+  html body[data-scroll-locked],
+  html body.with-scroll-bars-hidden {
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   body > :not(.print-area) {
     display: none !important;
@@ -216,8 +224,8 @@
   .print-area .poster-cell .poster-sheet {
     width: 210mm;
     height: 297mm;
-    zoom: 0.4429;
-    transform: none;
+    transform: scale(0.4429);
+    transform-origin: top left;
   }
   .print-area [data-slot='dialog-header'],
   .print-area button {
